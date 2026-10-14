@@ -1,0 +1,930 @@
+{
+  "workerKey": "beta_testers",
+  "tools": [
+    {
+      "tool": "beta_testers_add_to_builds",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "write",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_builds_createToManyRelationship",
+          "method": "post",
+          "path": "/v1/betaTesters/{id}/relationships/builds",
+          "role": "primary"
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "beta_tester_id",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_builds_createToManyRelationship",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "build_ids",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesters_builds_createToManyRelationship",
+          "jsonPointer": "/data"
+        }
+      ],
+      "response": {
+        "mode": "local",
+        "sources": [
+          { "operationId": "betaTesters_builds_createToManyRelationship", "statusCode": "204" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "True after Apple's 204 no-content response."
+          },
+          {
+            "outputField": "message",
+            "localRole": "Local relationship-mutation confirmation."
+          }
+        ]
+      },
+      "note": "Rejects empty, malformed, or mixed-type ID arrays atomically before the exact relationship mutation; only Apple's 204 no-content response is accepted."
+    },
+    {
+      "tool": "beta_testers_add_to_groups",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "write",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_betaGroups_createToManyRelationship",
+          "method": "post",
+          "path": "/v1/betaTesters/{id}/relationships/betaGroups",
+          "role": "primary"
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "beta_tester_id",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_betaGroups_createToManyRelationship",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "group_ids",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesters_betaGroups_createToManyRelationship",
+          "jsonPointer": "/data"
+        }
+      ],
+      "response": {
+        "mode": "local",
+        "sources": [
+          { "operationId": "betaTesters_betaGroups_createToManyRelationship", "statusCode": "204" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "True after Apple's 204 no-content response."
+          },
+          {
+            "outputField": "message",
+            "localRole": "Local relationship-mutation confirmation."
+          }
+        ]
+      },
+      "note": "Rejects empty, malformed, or mixed-type ID arrays atomically before the exact relationship mutation; only Apple's 204 no-content response is accepted."
+    },
+    {
+      "tool": "beta_testers_create",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "write",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_createInstance",
+          "method": "post",
+          "path": "/v1/betaTesters",
+          "role": "primary",
+          "inputs": [
+            {
+              "sourceKind": "fixed",
+              "jsonPointer": "/data/type",
+              "fixedValue": "betaTesters"
+            },
+            {
+              "sourceKind": "fixed",
+              "jsonPointer": "/data/relationships/betaGroups/data/*/type",
+              "fixedValue": "betaGroups"
+            },
+            {
+              "sourceKind": "fixed",
+              "jsonPointer": "/data/relationships/builds/data/*/type",
+              "fixedValue": "builds"
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "email",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesters_createInstance",
+          "jsonPointer": "/data/attributes/email"
+        },
+        {
+          "toolField": "first_name",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesters_createInstance",
+          "jsonPointer": "/data/attributes/firstName"
+        },
+        {
+          "toolField": "last_name",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesters_createInstance",
+          "jsonPointer": "/data/attributes/lastName"
+        },
+        {
+          "toolField": "group_ids",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesters_createInstance",
+          "jsonPointer": "/data/relationships/betaGroups/data"
+        },
+        {
+          "toolField": "build_ids",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesters_createInstance",
+          "jsonPointer": "/data/relationships/builds/data"
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "betaTesters_createInstance",
+            "statusCode": "201",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+        {
+          "outputField": "beta_tester",
+          "operationId": "betaTesters_createInstance",
+          "jsonPointer": "/data",
+          "localRole": "Stable tester projection including Apple's appDevices attributes."
+          }
+        ]
+      },
+      "note": "Apple requires only email; the handler validates email format before network access, betaGroups and builds relationships are independently optional and validated when supplied, and the response projects the complete Apple 4.4.1 appDevices attribute."
+    },
+    {
+      "tool": "beta_testers_delete",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "destructive",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_deleteInstance",
+          "method": "delete",
+          "path": "/v1/betaTesters/{id}",
+          "role": "primary"
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "tester_id",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_deleteInstance",
+          "location": "path",
+          "appleName": "id"
+        }
+      ],
+      "response": {
+        "mode": "local",
+        "sources": [
+          { "operationId": "betaTesters_deleteInstance", "statusCode": "202" },
+          { "operationId": "betaTesters_deleteInstance", "statusCode": "204" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "True after Apple's documented 202 or 204 response; false for an unexpected successful status whose completion cannot be verified."
+          },
+          {
+            "outputField": "message",
+            "localRole": "Local confirmation for HTTP 204 or acceptance message for HTTP 202."
+          },
+          {
+            "outputField": "statusCode",
+            "localRole": "Exact successful HTTP status returned by Apple."
+          },
+          {
+            "outputField": "deletionState",
+            "localRole": "confirmed for HTTP 204, accepted for HTTP 202, or committed_unverified for any unexpected successful status."
+          },
+          {
+            "outputField": "processingComplete",
+            "localRole": "True only when Apple returns HTTP 204; false when asynchronous processing or completion inspection remains."
+          },
+          {
+            "outputField": "inspection",
+            "localRole": "Exact beta_testers_get recovery call when Apple accepts asynchronous processing or returns an unexpected successful status."
+          }
+        ]
+      },
+      "note": "Exact destructive operation; HTTP 202 is accepted for asynchronous processing and requires inspection, while HTTP 204 confirms completion."
+    },
+    {
+      "tool": "beta_testers_get",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_getInstance",
+          "method": "get",
+          "path": "/v1/betaTesters/{id}",
+          "role": "primary",
+          "optionalParameterClassifications": [
+            {
+              "location": "query",
+              "appleName": "limit[apps]",
+              "disposition": "intentionallyOmitted",
+              "reason": "The detail tool returns Apple's bounded included-app preview; full app access remains paginated through beta_testers_list_apps.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[betaGroups]",
+              "disposition": "intentionallyOmitted",
+              "reason": "The detail tool intentionally returns a bounded included beta-group preview.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[builds]",
+              "disposition": "intentionallyOmitted",
+              "reason": "The detail tool intentionally returns a bounded included-build preview; relationship mutation has dedicated tools.",
+              "reviewAtSpec": "4.4.1"
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "tester_id",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getInstance",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "include",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getInstance",
+          "location": "query",
+          "appleName": "include"
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "betaTesters_getInstance",
+            "statusCode": "200",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+          {
+            "outputField": "beta_tester",
+            "operationId": "betaTesters_getInstance",
+            "jsonPointer": "/data",
+            "localRole": "Stable tester projection including Apple's appDevices attributes."
+          },
+          {
+            "outputField": "beta_tester.apps",
+            "operationId": "betaTesters_getInstance",
+            "jsonPointer": "/included"
+          },
+          {
+            "outputField": "beta_tester.betaGroups",
+            "operationId": "betaTesters_getInstance",
+            "jsonPointer": "/included"
+          },
+          {
+            "outputField": "beta_tester.builds",
+            "operationId": "betaTesters_getInstance",
+            "jsonPointer": "/included"
+          }
+        ]
+      },
+      "note": "Supports and decodes every documented include value (apps, betaGroups, and builds) plus the complete Apple 4.4.1 appDevices attribute."
+    },
+    {
+      "tool": "beta_testers_list",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_getCollection",
+          "method": "get",
+          "path": "/v1/betaTesters",
+          "role": "primary",
+          "optionalParameterClassifications": [
+            {
+              "location": "query",
+              "appleName": "include",
+              "disposition": "intentionallyOmitted",
+              "reason": "The collection returns tester and relationship-ID projections; included details are available through beta_testers_get.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[apps]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Apps are not included by the tester collection projection.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[betaGroups]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Beta groups are not included by the tester collection projection.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[builds]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Builds are not included by the tester collection projection.",
+              "reviewAtSpec": "4.4.1"
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "app_id",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "filter[apps]"
+        },
+        {
+          "toolField": "first_name",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "filter[firstName]"
+        },
+        {
+          "toolField": "last_name",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "filter[lastName]"
+        },
+        {
+          "toolField": "email",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "filter[email]"
+        },
+        {
+          "toolField": "invite_type",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "filter[inviteType]"
+        },
+        {
+          "toolField": "group_ids",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "filter[betaGroups]"
+        },
+        {
+          "toolField": "build_ids",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "filter[builds]"
+        },
+        {
+          "toolField": "tester_ids",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "filter[id]"
+        },
+        {
+          "toolField": "sort",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "sort"
+        },
+        {
+          "toolField": "limit",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "limit"
+        },
+        {
+          "toolField": "next_url",
+          "sourceKind": "local",
+          "localRole": "Strict Apple continuation URL for this exact collection. The caller must repeat every originating list control, including the effective/default limit, filters, sort, include, fields, and nested limits when supported; the exact query and a non-empty cursor are validated before sending the continuation request."
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "betaTesters_getCollection",
+            "statusCode": "200",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+        {
+          "outputField": "beta_testers",
+          "operationId": "betaTesters_getCollection",
+          "jsonPointer": "/data",
+          "localRole": "Stable tester projections including Apple's appDevices attributes."
+          },
+          {
+            "outputField": "next_url",
+            "operationId": "betaTesters_getCollection",
+            "jsonPointer": "/links/next"
+          },
+          {
+            "outputField": "total",
+            "operationId": "betaTesters_getCollection",
+            "jsonPointer": "/meta/paging/total"
+          }
+        ]
+      },
+      "note": "Exposes every current semantic tester filter and sort while keeping included-resource projection controlled and preserving the complete Apple 4.4.1 appDevices attribute."
+    },
+    {
+      "tool": "beta_testers_list_apps",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_apps_getToManyRelated",
+          "method": "get",
+          "path": "/v1/betaTesters/{id}/apps",
+          "role": "primary"
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "tester_id",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_apps_getToManyRelated",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "limit",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_apps_getToManyRelated",
+          "location": "query",
+          "appleName": "limit"
+        },
+        {
+          "toolField": "next_url",
+          "sourceKind": "local",
+          "localRole": "Strict Apple continuation URL for this exact collection. The caller must repeat every originating list control, including the effective/default limit, filters, sort, include, fields, and nested limits when supported; the exact query and a non-empty cursor are validated before sending the continuation request."
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "betaTesters_apps_getToManyRelated",
+            "statusCode": "200",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+          {
+            "outputField": "apps",
+            "operationId": "betaTesters_apps_getToManyRelated",
+            "jsonPointer": "/data"
+          },
+          {
+            "outputField": "next_url",
+            "operationId": "betaTesters_apps_getToManyRelated",
+            "jsonPointer": "/links/next"
+          }
+        ]
+      },
+      "note": "Exact related-resource list with a reduced app projection and fail-closed 1 through 200 limit validation."
+    },
+    {
+      "tool": "beta_testers_remove_from_app",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "destructive",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_apps_deleteToManyRelationship",
+          "method": "delete",
+          "path": "/v1/betaTesters/{id}/relationships/apps",
+          "role": "primary",
+          "inputs": [
+            {
+              "sourceKind": "fixed",
+              "jsonPointer": "/data/*/type",
+              "fixedValue": "apps"
+            },
+            {
+              "sourceKind": "derived",
+              "jsonPointer": "/data/*/id",
+              "derivedFrom": [
+                "app_id"
+              ],
+              "localRole": "Wrap the public app ID in the single relationship identifier removed from the tester."
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "beta_tester_id",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_apps_deleteToManyRelationship",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "app_id",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesters_apps_deleteToManyRelationship",
+          "jsonPointer": "/data/*/id"
+        }
+      ],
+      "response": {
+        "mode": "local",
+        "sources": [
+          { "operationId": "betaTesters_apps_deleteToManyRelationship", "statusCode": "202" },
+          { "operationId": "betaTesters_apps_deleteToManyRelationship", "statusCode": "204" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "True after Apple's documented 202 or 204 response; false for an unexpected successful status whose completion cannot be verified."
+          },
+          {
+            "outputField": "message",
+            "localRole": "Local confirmation for HTTP 204 or acceptance message for HTTP 202."
+          },
+          {
+            "outputField": "statusCode",
+            "localRole": "Exact successful HTTP status returned by Apple."
+          },
+          {
+            "outputField": "deletionState",
+            "localRole": "confirmed for HTTP 204, accepted for HTTP 202, or committed_unverified for any unexpected successful status."
+          },
+          {
+            "outputField": "processingComplete",
+            "localRole": "True only when Apple returns HTTP 204; false when asynchronous processing or completion inspection remains."
+          },
+          {
+            "outputField": "inspection",
+            "localRole": "Initial beta_testers_list_apps recovery call uses limit 200 and requires following every returned next_url with the same tester and limit until the complete collection proves the target app absent."
+          }
+        ]
+      },
+      "note": "Exact relationship removal; HTTP 202 is accepted for asynchronous processing and requires inspection, while HTTP 204 confirms completion."
+    },
+    {
+      "tool": "beta_testers_remove_from_builds",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "destructive",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_builds_deleteToManyRelationship",
+          "method": "delete",
+          "path": "/v1/betaTesters/{id}/relationships/builds",
+          "role": "primary"
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "beta_tester_id",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_builds_deleteToManyRelationship",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "build_ids",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesters_builds_deleteToManyRelationship",
+          "jsonPointer": "/data"
+        }
+      ],
+      "response": {
+        "mode": "local",
+        "sources": [
+          { "operationId": "betaTesters_builds_deleteToManyRelationship", "statusCode": "204" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "True after Apple's 204 no-content response."
+          },
+          {
+            "outputField": "message",
+            "localRole": "Local relationship-removal confirmation."
+          }
+        ]
+      },
+      "note": "Rejects empty, malformed, or mixed-type ID arrays atomically before the exact relationship removal; Apple returns 204 without a response document."
+    },
+    {
+      "tool": "beta_testers_remove_from_groups",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "destructive",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_betaGroups_deleteToManyRelationship",
+          "method": "delete",
+          "path": "/v1/betaTesters/{id}/relationships/betaGroups",
+          "role": "primary"
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "beta_tester_id",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_betaGroups_deleteToManyRelationship",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "group_ids",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesters_betaGroups_deleteToManyRelationship",
+          "jsonPointer": "/data"
+        }
+      ],
+      "response": {
+        "mode": "local",
+        "sources": [
+          { "operationId": "betaTesters_betaGroups_deleteToManyRelationship", "statusCode": "204" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "True after Apple's 204 no-content response."
+          },
+          {
+            "outputField": "message",
+            "localRole": "Local relationship-removal confirmation."
+          }
+        ]
+      },
+      "note": "Rejects empty, malformed, or mixed-type ID arrays atomically before the exact relationship removal; Apple returns 204 without a response document."
+    },
+    {
+      "tool": "beta_testers_search",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesters_getCollection",
+          "method": "get",
+          "path": "/v1/betaTesters",
+          "role": "primary",
+          "optionalParameterClassifications": [
+            {
+              "location": "query",
+              "appleName": "filter[betaGroups]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Advanced group filtering belongs to beta_testers_list; search is intentionally exact-email plus optional app scope.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[builds]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Advanced build filtering belongs to beta_testers_list; search is intentionally exact-email plus optional app scope.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[firstName]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Name filtering belongs to beta_testers_list; Apple email search is exact.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[id]",
+              "disposition": "intentionallyOmitted",
+              "reason": "A caller with a tester ID should use beta_testers_get.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[inviteType]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Invitation-type filtering belongs to beta_testers_list.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[lastName]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Name filtering belongs to beta_testers_list; Apple email search is exact.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "include",
+              "disposition": "intentionallyOmitted",
+              "reason": "Search returns compact tester matches; beta_testers_get provides included details.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[apps]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Apps are not included in search results.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[betaGroups]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Beta groups are not included in search results.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[builds]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Builds are not included in search results.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "sort",
+              "disposition": "intentionallyOmitted",
+              "reason": "Exact-email search preserves Apple's natural match order and exposes pagination for ambiguous matches.",
+              "reviewAtSpec": "4.4.1"
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "email",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "filter[email]"
+        },
+        {
+          "toolField": "app_id",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "filter[apps]"
+        },
+        {
+          "toolField": "limit",
+          "sourceKind": "parameter",
+          "operationId": "betaTesters_getCollection",
+          "location": "query",
+          "appleName": "limit"
+        },
+        {
+          "toolField": "next_url",
+          "sourceKind": "local",
+          "localRole": "Strict Apple continuation URL for this exact collection. The caller must repeat every originating list control, including the effective/default limit, filters, sort, include, fields, and nested limits when supported; the exact query and a non-empty cursor are validated before sending the continuation request."
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "betaTesters_getCollection",
+            "statusCode": "200",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+        {
+          "outputField": "beta_testers",
+          "operationId": "betaTesters_getCollection",
+          "jsonPointer": "/data",
+          "localRole": "Stable tester projections including Apple's appDevices attributes."
+          },
+          {
+            "outputField": "next_url",
+            "operationId": "betaTesters_getCollection",
+            "jsonPointer": "/links/next"
+          },
+          {
+            "outputField": "total",
+            "operationId": "betaTesters_getCollection",
+            "jsonPointer": "/meta/paging/total"
+          }
+        ]
+      },
+      "note": "Exact-email collection filter with an optional app scope, validated pagination, and complete appDevices projections for ambiguous or repeated matches; partial matching is not provided by Apple."
+    },
+    {
+      "tool": "beta_testers_send_invitation",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "write",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "betaTesterInvitations_createInstance",
+          "method": "post",
+          "path": "/v1/betaTesterInvitations",
+          "role": "primary",
+          "inputs": [
+            {
+              "sourceKind": "fixed",
+              "jsonPointer": "/data/type",
+              "fixedValue": "betaTesterInvitations"
+            },
+        {
+          "sourceKind": "fixed",
+          "jsonPointer": "/data/relationships/app/data/type",
+          "fixedValue": "apps"
+        },
+        {
+          "sourceKind": "fixed",
+          "jsonPointer": "/data/relationships/betaTester/data/type",
+          "fixedValue": "betaTesters"
+        }
+      ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "beta_tester_id",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesterInvitations_createInstance",
+          "jsonPointer": "/data/relationships/betaTester/data/id"
+        },
+        {
+          "toolField": "app_id",
+          "sourceKind": "requestBody",
+          "operationId": "betaTesterInvitations_createInstance",
+          "jsonPointer": "/data/relationships/app/data/id"
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "betaTesterInvitations_createInstance",
+            "statusCode": "201",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "True after Apple creates the invitation resource."
+          },
+          {
+            "outputField": "message",
+            "localRole": "Local invitation confirmation."
+          }
+        ]
+      },
+      "note": "Exact invitation workflow; the current handler intentionally ignores Apple's returned invitation resource."
+    }
+  ],
+  "implementationAliases": []
+}

@@ -1,0 +1,198 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "App Store Connect API",
+    "version": "4.3-test"
+  },
+  "paths": {
+    "/v1/apps": {
+      "get": {
+        "operationId": "apps_getCollection",
+        "summary": "List Apps",
+        "tags": ["Apps"],
+        "parameters": [
+          {
+            "name": "filter[name]",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {"type": "string"},
+              "minItems": 1
+            }
+          },
+          {
+            "name": "filter[platform]",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["IOS", "MAC_OS"]
+            }
+          },
+          {
+            "name": "includeBeta",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Apps",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/AppsResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/apps/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {"type": "string"}
+        }
+      ],
+      "get": {
+        "operationId": "apps_getInstance",
+        "summary": "Read App Information",
+        "tags": ["Apps"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "operation override",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["appInfos", "appStoreVersions"]
+              }
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "apps_updateInstance",
+        "summary": "Modify an App",
+        "tags": ["Apps"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/AppUpdateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "App",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/AppResponse"}
+              }
+            }
+          },
+          "204": {"description": "No Content"}
+        }
+      }
+    },
+    "/v1/gameCenterAchievements": {
+      "get": {
+        "operationId": "gameCenterAchievements_getCollection",
+        "summary": "List Game Center achievements",
+        "tags": ["Game Center Achievements"]
+      },
+      "post": {
+        "operationId": "gameCenterAchievements_createInstance",
+        "summary": "Create a Game Center achievement",
+        "deprecated": true,
+        "tags": ["Game Center Achievements"]
+      }
+    },
+    "/v1/gameCenterAchievements/{id}": {
+      "get": {
+        "operationId": "gameCenterAchievements_getInstance",
+        "summary": "Read Game Center achievement information",
+        "tags": ["Game Center Achievements"]
+      },
+      "patch": {
+        "operationId": "gameCenterAchievements_updateInstance",
+        "summary": "Modify a Game Center achievement",
+        "tags": ["Game Center Achievements"]
+      }
+    },
+    "/v1/actors": {
+      "get": {
+        "operationId": "actors_getCollection",
+        "summary": "List Actors",
+        "tags": ["Actors"]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AppsResponse": {"type": "object"},
+      "AppResponse": {"type": "object"},
+      "AppUpdateRequest": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {"$ref": "#/components/schemas/AppUpdateData"}
+        }
+      },
+      "AppUpdateData": {
+        "type": "object",
+        "required": ["attributes", "type"],
+        "properties": {
+          "id": {"type": "string"},
+          "type": {"type": "string", "enum": ["apps"]},
+          "attributes": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {"type": "string"},
+              "reviewNote": {
+                "nullable": true,
+                "allOf": [
+                  {"$ref": "#/components/schemas/ReviewNote"}
+                ]
+              }
+            }
+          }
+        }
+      },
+      "ReviewNote": {
+        "type": "string",
+        "enum": ["PUBLIC", "PRIVATE"]
+      }
+    }
+  }
+}

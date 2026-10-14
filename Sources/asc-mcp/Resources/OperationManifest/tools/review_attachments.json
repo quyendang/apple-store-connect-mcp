@@ -1,0 +1,440 @@
+{
+  "workerKey": "review_attachments",
+  "tools": [
+    {
+      "tool": "review_attachments_delete",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "destructive",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "appStoreReviewAttachments_deleteInstance",
+          "method": "delete",
+          "path": "/v1/appStoreReviewAttachments/{id}",
+          "role": "primary"
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "attachment_id",
+          "sourceKind": "parameter",
+          "operationId": "appStoreReviewAttachments_deleteInstance",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "confirm_attachment_id",
+          "sourceKind": "local",
+          "localRole": "Require an exact canonical match with attachment_id before issuing the destructive request."
+        }
+      ],
+      "response": {
+        "mode": "local",
+        "sources": [
+          { "operationId": "appStoreReviewAttachments_deleteInstance", "statusCode": "204" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "Set true only after exact ID confirmation and Apple's empty HTTP 204 response."
+          },
+          {
+            "outputField": "message",
+            "localRole": "Build a deterministic confirmation from attachment_id."
+          }
+        ]
+      },
+      "note": "The tool rejects unknown arguments, non-canonical IDs, and a missing or mismatched confirm_attachment_id without sending a request. Apple returns 204 with no media type; ambiguous DELETE outcomes and unexpected successful statuses remain unverified and require an exact review_attachments_get inspection. The MCP confirmation is local and has no outputSchema."
+    },
+    {
+      "tool": "review_attachments_get",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "appStoreReviewAttachments_getInstance",
+          "method": "get",
+          "path": "/v1/appStoreReviewAttachments/{id}",
+          "role": "primary",
+          "inputs": [
+            {
+              "sourceKind": "fixed",
+              "location": "query",
+              "appleName": "fields[appStoreReviewAttachments]",
+              "fixedValue": [
+                "fileSize",
+                "fileName",
+                "sourceFileChecksum",
+                "assetDeliveryState",
+                "appStoreReviewDetail"
+              ]
+            },
+            {
+              "sourceKind": "fixed",
+              "location": "query",
+              "appleName": "include",
+              "fixedValue": ["appStoreReviewDetail"]
+            },
+            {
+              "sourceKind": "fixed",
+              "location": "query",
+              "appleName": "fields[appStoreReviewDetails]",
+              "fixedValue": ["appStoreVersion"]
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "attachment_id",
+          "sourceKind": "parameter",
+          "operationId": "appStoreReviewAttachments_getInstance",
+          "location": "path",
+          "appleName": "id"
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "appStoreReviewAttachments_getInstance",
+            "statusCode": "200",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "Set true after a successful Apple response."
+          },
+          {
+            "outputField": "attachment",
+            "operationId": "appStoreReviewAttachments_getInstance",
+            "jsonPointer": "/data"
+          },
+          {
+            "outputField": "attachment.appStoreReviewDetailId",
+            "operationId": "appStoreReviewAttachments_getInstance",
+            "jsonPointer": "/data/relationships/appStoreReviewDetail/data/id"
+          }
+        ]
+      },
+      "note": "The direct read fixes a documented attachment projection that omits presigned uploadOperations and returns the review-detail relationship ID. It requires the top-level links object and validates links.self against the configured App Store Connect origin, exact attachment path, and fixed projection query before reporting success; the mapping remains partial because the tool has no outputSchema."
+    },
+    {
+      "tool": "review_attachments_list",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "appStoreReviewDetails_appStoreReviewAttachments_getToManyRelated",
+          "method": "get",
+          "path": "/v1/appStoreReviewDetails/{id}/appStoreReviewAttachments",
+          "role": "primary",
+          "inputs": [
+            {
+              "sourceKind": "fixed",
+              "location": "query",
+              "appleName": "fields[appStoreReviewAttachments]",
+              "fixedValue": [
+                "fileSize",
+                "fileName",
+                "sourceFileChecksum",
+                "assetDeliveryState",
+                "appStoreReviewDetail"
+              ]
+            },
+            {
+              "sourceKind": "fixed",
+              "location": "query",
+              "appleName": "include",
+              "fixedValue": ["appStoreReviewDetail"]
+            },
+            {
+              "sourceKind": "fixed",
+              "location": "query",
+              "appleName": "fields[appStoreReviewDetails]",
+              "fixedValue": ["appStoreVersion"]
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "review_detail_id",
+          "sourceKind": "parameter",
+          "operationId": "appStoreReviewDetails_appStoreReviewAttachments_getToManyRelated",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "limit",
+          "sourceKind": "parameter",
+          "operationId": "appStoreReviewDetails_appStoreReviewAttachments_getToManyRelated",
+          "location": "query",
+          "appleName": "limit"
+        },
+        {
+          "toolField": "next_url",
+          "sourceKind": "local",
+          "localRole": "Strict Apple continuation URL for this exact collection. The caller must repeat every originating list control, including the effective/default limit, filters, sort, include, fields, and nested limits when supported; the exact query and a non-empty cursor are validated before sending the continuation request."
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "appStoreReviewDetails_appStoreReviewAttachments_getToManyRelated",
+            "statusCode": "200",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "Set true after a successful Apple response."
+          },
+          {
+            "outputField": "attachments",
+            "operationId": "appStoreReviewDetails_appStoreReviewAttachments_getToManyRelated",
+            "jsonPointer": "/data"
+          },
+          {
+            "outputField": "attachments.appStoreReviewDetailId",
+            "operationId": "appStoreReviewDetails_appStoreReviewAttachments_getToManyRelated",
+            "jsonPointer": "/data/*/relationships/appStoreReviewDetail/data/id"
+          },
+          {
+            "outputField": "count",
+            "localRole": "Count the projected attachment resources."
+          },
+          {
+            "outputField": "next_url",
+            "operationId": "appStoreReviewDetails_appStoreReviewAttachments_getToManyRelated",
+            "jsonPointer": "/links/next"
+          },
+          {
+            "outputField": "total",
+            "operationId": "appStoreReviewDetails_appStoreReviewAttachments_getToManyRelated",
+            "jsonPointer": "/meta/paging/total"
+          }
+        ]
+      },
+      "note": "The related collection uses the same upload-operation-free projection, requires callers to repeat a non-default limit with next_url so the effective limit remains stable across pagination, and returns paging total plus review-detail linkage. It requires top-level links, binds links.self and every continuation to the configured origin plus exact parent, projection, limit, and requested cursor, rejects duplicate resource IDs, and validates paging limit, total, and nextCursor consistency before reporting success; the mapping remains partial because the tool has no outputSchema."
+    },
+    {
+      "tool": "review_attachments_upload",
+      "kind": "compound",
+      "status": "partial",
+      "effect": "write",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "appStoreReviewAttachments_createInstance",
+          "method": "post",
+          "path": "/v1/appStoreReviewAttachments",
+          "role": "primary",
+          "condition": "After creating an immutable local snapshot, reserve an attachment with metadata derived from that snapshot, require exactly HTTP 201 plus a canonical attachment identity, require Apple's echoed fileName and fileSize to match the snapshot exactly, and only then accept signed upload operations.",
+          "inputs": [
+            {
+              "sourceKind": "fixed",
+              "jsonPointer": "/data/type",
+              "fixedValue": "appStoreReviewAttachments"
+            },
+            {
+              "sourceKind": "fixed",
+              "jsonPointer": "/data/relationships/appStoreReviewDetail/data/type",
+              "fixedValue": "appStoreReviewDetails"
+            }
+          ]
+        },
+        {
+          "operationId": "appStoreReviewAttachments_updateInstance",
+          "method": "patch",
+          "path": "/v1/appStoreReviewAttachments/{id}",
+          "role": "supporting",
+          "condition": "After all presigned upload operations succeed, commit the derived checksum with uploaded=true using the canonical attachment ID returned by create and require exactly HTTP 200.",
+          "inputs": [
+            {
+              "sourceKind": "derived",
+              "location": "path",
+              "appleName": "id",
+              "derivedFrom": [
+                "appStoreReviewAttachments_createInstance:/data/id"
+              ],
+              "localRole": "Use the attachment ID returned by the reservation response."
+            },
+            {
+              "sourceKind": "derived",
+              "jsonPointer": "/data/id",
+              "derivedFrom": [
+                "appStoreReviewAttachments_createInstance:/data/id"
+              ],
+              "localRole": "Copy the reservation response ID into the commit resource identifier."
+            },
+            {
+              "sourceKind": "fixed",
+              "jsonPointer": "/data/type",
+              "fixedValue": "appStoreReviewAttachments"
+            },
+            {
+              "sourceKind": "fixed",
+              "jsonPointer": "/data/attributes/uploaded",
+              "fixedValue": true
+            }
+          ]
+        },
+        {
+          "operationId": "appStoreReviewAttachments_getInstance",
+          "method": "get",
+          "path": "/v1/appStoreReviewAttachments/{id}",
+          "role": "conditional",
+          "condition": "When the commit response is nonterminal or the commit outcome is ambiguous, reconcile the created attachment until assetDeliveryState reaches a terminal state unless the task is cancelled.",
+          "optionalParameterClassifications": [
+            {
+              "location": "query",
+              "appleName": "include",
+              "disposition": "intentionallyOmitted",
+              "reason": "Upload reconciliation needs attachment delivery state and relationship identity only; expanding reviewer contact or demo-account data is unrelated to delivery verification.",
+              "reviewAtSpec": "4.4.1"
+            }
+          ],
+          "inputs": [
+            {
+              "sourceKind": "derived",
+              "location": "path",
+              "appleName": "id",
+              "derivedFrom": [
+                "appStoreReviewAttachments_createInstance:/data/id"
+              ],
+              "localRole": "Poll the attachment created by the reservation operation."
+            }
+          ]
+        },
+        {
+          "operationId": "appStoreReviewAttachments_deleteInstance",
+          "method": "delete",
+          "path": "/v1/appStoreReviewAttachments/{id}",
+          "role": "conditional",
+          "condition": "Before any commit PATCH is attempted, best-effort delete a confirmed reservation when cancellation, a missing upload plan, byte-transfer failure, or commit-body preparation prevents commit; treat 404 as already absent.",
+          "inputs": [
+            {
+              "sourceKind": "derived",
+              "location": "path",
+              "appleName": "id",
+              "derivedFrom": [
+                "appStoreReviewAttachments_createInstance:/data/id"
+              ],
+              "localRole": "Rollback only the known reservation for this upload attempt, independently of caller cancellation."
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "review_detail_id",
+          "sourceKind": "requestBody",
+          "operationId": "appStoreReviewAttachments_createInstance",
+          "jsonPointer": "/data/relationships/appStoreReviewDetail/data/id"
+        },
+        {
+          "toolField": "file_path",
+          "sourceKind": "local",
+          "localRole": "Create an immutable temporary snapshot of the local file and upload those bytes through Apple's presigned uploadOperations; presigned transfers are outside the App Store Connect OpenAPI."
+        },
+        {
+          "toolField": "file_path",
+          "sourceKind": "derived",
+          "operationId": "appStoreReviewAttachments_createInstance",
+          "jsonPointer": "/data/attributes/fileSize",
+          "derivedFrom": [
+            "file_path"
+          ],
+          "localRole": "Derive the reservation fileSize from the immutable snapshot."
+        },
+        {
+          "toolField": "file_path",
+          "sourceKind": "derived",
+          "operationId": "appStoreReviewAttachments_createInstance",
+          "jsonPointer": "/data/attributes/fileName",
+          "derivedFrom": [
+            "file_path"
+          ],
+          "localRole": "Derive the reservation fileName associated with the immutable snapshot."
+        },
+        {
+          "toolField": "file_path",
+          "sourceKind": "derived",
+          "operationId": "appStoreReviewAttachments_updateInstance",
+          "jsonPointer": "/data/attributes/sourceFileChecksum",
+          "derivedFrom": [
+            "file_path"
+          ],
+          "localRole": "Derive sourceFileChecksum from the same immutable snapshot bytes sent through every upload operation."
+        }
+      ],
+      "response": {
+        "mode": "aggregate",
+        "sources": [
+          { "operationId": "appStoreReviewAttachments_createInstance", "statusCode": "201", "mediaType": "application/json" },
+          { "operationId": "appStoreReviewAttachments_deleteInstance", "statusCode": "204" },
+          { "operationId": "appStoreReviewAttachments_getInstance", "statusCode": "200", "mediaType": "application/json" },
+          { "operationId": "appStoreReviewAttachments_updateInstance", "statusCode": "200", "mediaType": "application/json" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "Set true when processing reaches COMPLETE or when an exact HTTP 200 commit remains accepted processing-pending; ambiguous commit, unexpected-resource, unexpected-success-status, and FAILED outcomes remain false."
+          },
+          {
+            "outputField": "attachment",
+            "localRole": "Project the latest attachment returned by commit or reconciliation, including nonterminal and FAILED states."
+          },
+          {
+            "outputField": "uploadCommitted",
+            "localRole": "Set true for an accepted processing-pending result only after the commit PATCH returned exactly HTTP 200 and no known semantic identity or lineage conflict occurred."
+          },
+          {
+            "outputField": "processingComplete",
+            "localRole": "Set false for an accepted processing-pending result."
+          },
+          {
+            "outputField": "deliveryPending",
+            "localRole": "Set true while a confirmed commit is still processing and for unresolved ambiguous post-PATCH outcomes."
+          },
+          {
+            "outputField": "retrySafe",
+            "localRole": "Set false for accepted processing-pending and every unresolved post-reservation outcome to prevent duplicate reservations."
+          },
+          {
+            "outputField": "cleanup",
+            "localRole": "Describe rollback status or provide review_attachments_get and review_attachments_delete guidance, including confirm_attachment_id for explicit deletion of retained post-PATCH resources."
+          },
+          {
+            "outputField": "reservationHints",
+            "localRole": "For an unresolved reservation without a trusted resource ID, publish fileName and fileSize only as non-unique manual inspection hints and state that sourceFileChecksum is unavailable on an uncommitted reservation."
+          },
+          {
+            "outputField": "manualResolutionRequired",
+            "localRole": "Set true when an ambiguous reservation has no trusted attachment ID and cannot be attributed automatically."
+          },
+          {
+            "outputField": "manualResolution",
+            "localRole": "Require every-page collection inspection, exact-ID verification with review_attachments_get, and exact-ID confirmation for any review_attachments_delete cleanup before retry."
+          },
+          {
+            "outputField": "sourceFileChecksumReceipt",
+            "localRole": "Publish the immutable snapshot checksum only on applicable pre-commit failure paths where the reservation resource ID is already known; never use it to claim attribution of an ambiguous POST reservation."
+          }
+        ]
+      },
+      "note": "The handler snapshots the local file before reserve and derives reservation metadata, transfer bytes, and checksum from that immutable snapshot. It requires exact 201 reserve and 200 commit receipts, required top-level document links bound to the configured App Store Connect origin and exact resource path, canonical resource identity across reserve, commit, and reconciliation, exact echoed reservation fileName/fileSize before transfer, and consistent review-detail lineage. A semantic identity, lineage, or document-link scope conflict observed after a confirmed commit remains commit-unresolved and cannot be converted into success by a later reconciliation response. COMPLETE is successful; FAILED is terminal failure; missing, unknown, and every other state remain pending and are reconciled against the exact reserved attachment ID. After a confirmed 200 commit, nonterminal processing or unavailable verification is an accepted success with uploadCommitted=true, processingComplete=false, deliveryPending=true, and retrySafe=false only when no semantic conflict is known. If PATCH transport remains ambiguous and reconciliation only shows pending, the outcome stays an error. All post-PATCH outcomes retain the attachment with exact get/delete guidance, and explicit deletion requires confirm_attachment_id. A confirmed reservation that fails before PATCH is best-effort deleted with an exact 204 requirement independently of cancellation. If create may have succeeded but its response or canonical ID is unavailable, Apple exposes no idempotency key and sourceFileChecksum is not present on an uncommitted reservation, so fileName/fileSize are explicitly non-unique hints: the handler requires manual every-page inspection, exact-ID verification, and exact-confirmation cleanup before retry instead of claiming a unique match or silently reserving again. Signed upload operations never appear in structured output. The mapping remains partial because the MCP output has no outputSchema."
+    }
+  ],
+  "implementationAliases": []
+}

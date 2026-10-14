@@ -1,0 +1,188 @@
+{
+  "workerKey": "sandbox",
+  "tools": [
+    {
+      "tool": "sandbox_clear_purchase_history",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "write",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "sandboxTestersClearPurchaseHistoryRequestV2_createInstance",
+          "method": "post",
+          "path": "/v2/sandboxTestersClearPurchaseHistoryRequest",
+          "role": "primary",
+          "condition": null,
+          "inputs": [
+            { "sourceKind": "fixed", "jsonPointer": "/data/type", "fixedValue": "sandboxTestersClearPurchaseHistoryRequest" },
+            { "sourceKind": "fixed", "jsonPointer": "/data/relationships/sandboxTesters/data/*/type", "fixedValue": "sandboxTesters" }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "sandbox_tester_ids",
+          "sourceKind": "requestBody",
+          "operationId": "sandboxTestersClearPurchaseHistoryRequestV2_createInstance",
+          "jsonPointer": "/data/relationships/sandboxTesters/data/*/id"
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          { "operationId": "sandboxTestersClearPurchaseHistoryRequestV2_createInstance", "statusCode": "201", "mediaType": "application/json" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "Set true after Apple creates the clear-history request."
+          },
+          {
+            "outputField": "request_id",
+            "operationId": "sandboxTestersClearPurchaseHistoryRequestV2_createInstance",
+            "jsonPointer": "/data/id"
+          },
+          {
+            "outputField": "message",
+            "localRole": "Local confirmation containing the validated tester count."
+          }
+        ]
+      },
+      "note": "Validates every submitted tester ID and returns Apple's 201 request resource identifier."
+    },
+    {
+      "tool": "sandbox_list",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "sandboxTestersV2_getCollection",
+          "method": "get",
+          "path": "/v2/sandboxTesters",
+          "role": "primary",
+          "condition": null
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "limit",
+          "sourceKind": "parameter",
+          "operationId": "sandboxTestersV2_getCollection",
+          "location": "query",
+          "appleName": "limit"
+        },
+        {
+          "toolField": "next_url",
+          "sourceKind": "local",
+          "localRole": "Strict Apple continuation URL for this exact collection. The caller must repeat every originating list control, including the effective/default limit, filters, sort, include, fields, and nested limits when supported; the exact query and a non-empty cursor are validated before sending the continuation request."
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          { "operationId": "sandboxTestersV2_getCollection", "statusCode": "200", "mediaType": "application/json" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "Set true after a successful Apple response."
+          },
+          {
+            "outputField": "sandbox_testers",
+            "operationId": "sandboxTestersV2_getCollection",
+            "jsonPointer": "/data"
+          },
+          {
+            "outputField": "count",
+            "localRole": "Count of testers in the current page."
+          },
+          {
+            "outputField": "total",
+            "operationId": "sandboxTestersV2_getCollection",
+            "jsonPointer": "/meta/paging/total"
+          },
+          {
+            "outputField": "next_url",
+            "operationId": "sandboxTestersV2_getCollection",
+            "jsonPointer": "/links/next"
+          }
+        ]
+      },
+      "note": "Projects sparse Apple resources safely even when attributes are absent and preserves paging total."
+    },
+    {
+      "tool": "sandbox_update",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "write",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "sandboxTestersV2_updateInstance",
+          "method": "patch",
+          "path": "/v2/sandboxTesters/{id}",
+          "role": "primary",
+          "condition": null,
+          "inputs": [
+            {
+              "sourceKind": "derived",
+              "jsonPointer": "/data/id",
+              "derivedFrom": ["sandbox_tester_id"],
+              "localRole": "copyPathIdentifierIntoResourceBody"
+            },
+            { "sourceKind": "fixed", "jsonPointer": "/data/type", "fixedValue": "sandboxTesters" }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "sandbox_tester_id",
+          "sourceKind": "parameter",
+          "operationId": "sandboxTestersV2_updateInstance",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "territory",
+          "sourceKind": "requestBody",
+          "operationId": "sandboxTestersV2_updateInstance",
+          "jsonPointer": "/data/attributes/territory"
+        },
+        {
+          "toolField": "interrupt_purchases",
+          "sourceKind": "requestBody",
+          "operationId": "sandboxTestersV2_updateInstance",
+          "jsonPointer": "/data/attributes/interruptPurchases"
+        },
+        {
+          "toolField": "subscription_renewal_rate",
+          "sourceKind": "requestBody",
+          "operationId": "sandboxTestersV2_updateInstance",
+          "jsonPointer": "/data/attributes/subscriptionRenewalRate"
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          { "operationId": "sandboxTestersV2_updateInstance", "statusCode": "200", "mediaType": "application/json" }
+        ],
+        "fields": [
+          {
+            "outputField": "success",
+            "localRole": "Set true after Apple accepts the update."
+          },
+          {
+            "outputField": "sandbox_tester",
+            "operationId": "sandboxTestersV2_updateInstance",
+            "jsonPointer": "/data"
+          }
+        ]
+      },
+      "note": "Preserves value, explicit null, and omission for every writable attribute and rejects empty PATCH requests."
+    }
+  ],
+  "implementationAliases": []
+}

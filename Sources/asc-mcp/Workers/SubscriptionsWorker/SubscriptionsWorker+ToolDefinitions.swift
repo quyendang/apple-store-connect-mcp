@@ -1,0 +1,760 @@
+import Foundation
+import MCP
+
+// MARK: - Tool Definitions
+extension SubscriptionsWorker {
+
+    func listSubscriptionsTool() -> Tool {
+        return Tool(
+            name: "subscriptions_list",
+            description: "List subscriptions in a subscription group",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "group_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription group ID")
+                    ]),
+                    "limit": .object([
+                        "type": .string("integer"),
+                        "description": .string("Max results (default: 25, max: 200)"),
+                        "minimum": .int(1),
+                        "maximum": .int(200)
+                    ]),
+                    "filter_name": subscriptionStringListSchema("Filter by one or more exact reference names"),
+                    "filter_product_id": subscriptionStringListSchema("Filter by one or more exact product identifiers"),
+                    "filter_state": subscriptionEnumListSchema(
+                        "Filter by one or more App Store states",
+                        values: Self.subscriptionCatalogStates
+                    ),
+                    "sort": subscriptionEnumListSchema(
+                        "Sort by reference name; prefix with - for descending order",
+                        values: Self.subscriptionCatalogSortValues
+                    ),
+                    "next_url": .object([
+                        "type": .string("string"),
+                        "description": .string("Pagination URL from previous response to fetch next page")
+                    ])
+                ]),
+                "required": .array([.string("group_id")])
+            ])
+        )
+    }
+
+    func getSubscriptionTool() -> Tool {
+        return Tool(
+            name: "subscriptions_get",
+            description: "Get details of a specific subscription",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id")])
+            ])
+        )
+    }
+
+    func createSubscriptionTool() -> Tool {
+        return Tool(
+            name: "subscriptions_create",
+            description: "Create a new subscription in a subscription group",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "group_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription group ID")
+                    ]),
+                    "name": .object([
+                        "type": .string("string"),
+                        "description": .string("Reference name (internal only)")
+                    ]),
+                    "product_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Unique product identifier")
+                    ]),
+                    "subscription_period": .object([
+                        "type": .array([.string("string"), .string("null")]),
+                        "description": .string("Optional period, or null to preserve Apple's explicit nullable value"),
+                        "enum": .array([
+                            .string("ONE_WEEK"),
+                            .string("ONE_MONTH"),
+                            .string("TWO_MONTHS"),
+                            .string("THREE_MONTHS"),
+                            .string("SIX_MONTHS"),
+                            .string("ONE_YEAR"),
+                            .null
+                        ])
+                    ]),
+                    "family_sharable": .object([
+                        "type": .array([.string("boolean"), .string("null")]),
+                        "description": .string("Enable Family Sharing, or null to preserve Apple's explicit nullable value")
+                    ]),
+                    "group_level": .object([
+                        "type": .array([.string("integer"), .string("null")]),
+                        "description": .string("Level within the subscription group, or null to preserve Apple's explicit nullable value")
+                    ]),
+                    "review_note": .object([
+                        "type": .array([.string("string"), .string("null")]),
+                        "description": .string("Notes for App Review, or null to preserve Apple's explicit nullable value")
+                    ])
+                ]),
+                "required": .array([.string("group_id"), .string("name"), .string("product_id")])
+            ])
+        )
+    }
+
+    func updateSubscriptionTool() -> Tool {
+        return Tool(
+            name: "subscriptions_update",
+            description: "Update an existing subscription",
+            inputSchema: .object([
+                "type": .string("object"),
+                "additionalProperties": .bool(false),
+                "minProperties": .int(2),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID")
+                    ]),
+                    "name": .object([
+                        "type": .array([.string("string"), .string("null")]),
+                        "description": .string("New reference name, or null to clear")
+                    ]),
+                    "family_sharable": .object([
+                        "type": .array([.string("boolean"), .string("null")]),
+                        "description": .string("Enable Family Sharing, or null to clear")
+                    ]),
+                    "group_level": .object([
+                        "type": .array([.string("integer"), .string("null")]),
+                        "description": .string("Level within the subscription group, or null to clear")
+                    ]),
+                    "review_note": .object([
+                        "type": .array([.string("string"), .string("null")]),
+                        "description": .string("Notes for App Review, or null to clear")
+                    ]),
+                    "subscription_period": .object([
+                        "type": .array([.string("string"), .string("null")]),
+                        "description": .string("Subscription period, or null to clear Apple's nullable value"),
+                        "enum": .array([
+                            .string("ONE_WEEK"),
+                            .string("ONE_MONTH"),
+                            .string("TWO_MONTHS"),
+                            .string("THREE_MONTHS"),
+                            .string("SIX_MONTHS"),
+                            .string("ONE_YEAR"),
+                            .null
+                        ])
+                    ])
+                ]),
+                "required": .array([.string("subscription_id")])
+            ])
+        )
+    }
+
+    func deleteSubscriptionTool() -> Tool {
+        return Tool(
+            name: "subscriptions_delete",
+            description: "Delete a subscription",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID to delete")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id")])
+            ])
+        )
+    }
+
+    func listSubscriptionLocalizationsTool() -> Tool {
+        return Tool(
+            name: "subscriptions_list_localizations",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_list_versions and subscriptions_list_version_localizations. List legacy product-scoped subscription localizations without creating or selecting a version.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID")
+                    ]),
+                    "limit": .object([
+                        "type": .string("integer"),
+                        "description": .string("Max results (default: 25, max: 200)"),
+                        "minimum": .int(1),
+                        "maximum": .int(200)
+                    ]),
+                    "next_url": .object([
+                        "type": .string("string"),
+                        "description": .string("Pagination URL from previous response to fetch next page")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id")])
+            ])
+        )
+    }
+
+    func subscriptionStringListSchema(_ description: String) -> Value {
+        .object([
+            "description": .string("\(description); individual values cannot contain commas"),
+            "oneOf": .array([
+                .object([
+                    "type": .string("string"),
+                    "minLength": .int(1),
+                    "pattern": .string("^[^,]+$")
+                ]),
+                .object([
+                    "type": .string("array"),
+                    "items": .object([
+                        "type": .string("string"),
+                        "minLength": .int(1),
+                        "pattern": .string("^[^,]+$")
+                    ]),
+                    "minItems": .int(1),
+                    "uniqueItems": .bool(true)
+                ])
+            ])
+        ])
+    }
+
+    func subscriptionEnumListSchema(_ description: String, values: [String]) -> Value {
+        .object([
+            "description": .string(description),
+            "oneOf": .array([
+                .object([
+                    "type": .string("string"),
+                    "enum": .array(values.map(Value.string))
+                ]),
+                .object([
+                    "type": .string("array"),
+                    "items": .object([
+                        "type": .string("string"),
+                        "enum": .array(values.map(Value.string))
+                    ]),
+                    "minItems": .int(1),
+                    "uniqueItems": .bool(true)
+                ])
+            ])
+        ])
+    }
+
+    func createSubscriptionLocalizationTool() -> Tool {
+        return Tool(
+            name: "subscriptions_create_localization",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_create_version and subscriptions_create_version_localization. Create a legacy product-scoped subscription localization without automatic version migration.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID")
+                    ]),
+                    "locale": .object([
+                        "type": .string("string"),
+                        "description": .string("Locale code (e.g. en-US, ru-RU, de-DE, ja, zh-Hans)")
+                    ]),
+                    "name": .object([
+                        "type": .string("string"),
+                        "description": .string("Display name for the locale")
+                    ]),
+                    "description": .object([
+                        "type": .string("string"),
+                        "description": .string("Description for the locale")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id"), .string("locale"), .string("name")])
+            ])
+        )
+    }
+
+    func updateSubscriptionLocalizationTool() -> Tool {
+        return Tool(
+            name: "subscriptions_update_localization",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_update_version_localization. Update a legacy product-scoped subscription localization without automatic version migration.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "localization_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription localization ID")
+                    ]),
+                    "name": .object([
+                        "type": .string("string"),
+                        "description": .string("New display name")
+                    ]),
+                    "description": .object([
+                        "type": .string("string"),
+                        "description": .string("New description")
+                    ])
+                ]),
+                "required": .array([.string("localization_id")])
+            ])
+        )
+    }
+
+    func deleteSubscriptionLocalizationTool() -> Tool {
+        return Tool(
+            name: "subscriptions_delete_localization",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_delete_version_localization. Delete a legacy product-scoped subscription localization without automatic version migration.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "localization_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription localization ID to delete")
+                    ])
+                ]),
+                "required": .array([.string("localization_id")])
+            ])
+        )
+    }
+
+    func listSubscriptionPricesTool() -> Tool {
+        return Tool(
+            name: "subscriptions_list_prices",
+            description: "List prices for a subscription",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID")
+                    ]),
+                    "territory_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Filter by territory ID (e.g. USA, GBR)")
+                    ]),
+                    "price_point_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Filter by subscription price point ID")
+                    ]),
+                    "plan_types": subscriptionEnumListSchema(
+                        "Filter by one or more Apple subscription plan types",
+                        values: ASCSubscriptionPlanType.allCases.map(\.rawValue)
+                    ),
+                    "limit": .object([
+                        "type": .string("integer"),
+                        "description": .string("Max results (default: 25, max: 200)"),
+                        "minimum": .int(1),
+                        "maximum": .int(200)
+                    ]),
+                    "next_url": .object([
+                        "type": .string("string"),
+                        "description": .string("Pagination URL from previous response to fetch next page")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id")])
+            ])
+        )
+    }
+
+    func listSubscriptionPricePointsTool() -> Tool {
+        return Tool(
+            name: "subscriptions_list_price_points",
+            description: "List available price points for a subscription",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID")
+                    ]),
+                    "territory_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Filter by territory ID (e.g. USA, GBR). Recommended for AI-friendly output.")
+                    ]),
+                    "upfront_price_point_ids": subscriptionStringListSchema("Filter by one or more upfront price point IDs"),
+                    "plan_types": subscriptionEnumListSchema(
+                        "Filter by one or more Apple subscription plan types",
+                        values: ASCSubscriptionPlanType.allCases.map(\.rawValue)
+                    ),
+                    "limit": .object([
+                        "type": .string("integer"),
+                        "description": .string("Max results (default: 25, max: 8000)"),
+                        "minimum": .int(1),
+                        "maximum": .int(8000)
+                    ]),
+                    "next_url": .object([
+                        "type": .string("string"),
+                        "description": .string("Pagination URL from previous response to fetch next page")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id")])
+            ])
+        )
+    }
+
+    func createSubscriptionGroupTool() -> Tool {
+        return Tool(
+            name: "subscriptions_create_group",
+            description: "Create a new subscription group for an app",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "app_id": .object([
+                        "type": .string("string"),
+                        "description": .string("App Store Connect app ID")
+                    ]),
+                    "reference_name": .object([
+                        "type": .string("string"),
+                        "description": .string("Reference name for the subscription group")
+                    ])
+                ]),
+                "required": .array([.string("app_id"), .string("reference_name")])
+            ])
+        )
+    }
+
+    func updateSubscriptionGroupTool() -> Tool {
+        return Tool(
+            name: "subscriptions_update_group",
+            description: "Update a subscription group",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "group_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription group ID")
+                    ]),
+                    "reference_name": .object([
+                        "type": .string("string"),
+                        "description": .string("New reference name")
+                    ])
+                ]),
+                "required": .array([.string("group_id"), .string("reference_name")])
+            ])
+        )
+    }
+
+    func deleteSubscriptionGroupTool() -> Tool {
+        return Tool(
+            name: "subscriptions_delete_group",
+            description: "Delete a subscription group",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "group_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription group ID to delete")
+                    ])
+                ]),
+                "required": .array([.string("group_id")])
+            ])
+        )
+    }
+
+    func listSubscriptionGroupLocalizationsTool() -> Tool {
+        return Tool(
+            name: "subscriptions_list_group_localizations",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_list_group_versions and subscriptions_list_group_version_localizations. List legacy group-scoped localizations without creating or selecting a version.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_group_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription group ID")
+                    ]),
+                    "limit": .object([
+                        "type": .string("integer"),
+                        "description": .string("Max results (default: 25, max: 200)"),
+                        "minimum": .int(1),
+                        "maximum": .int(200)
+                    ]),
+                    "next_url": .object([
+                        "type": .string("string"),
+                        "description": .string("Pagination URL from previous response to fetch next page")
+                    ])
+                ]),
+                "required": .array([.string("subscription_group_id")])
+            ])
+        )
+    }
+
+    func createSubscriptionGroupLocalizationTool() -> Tool {
+        return Tool(
+            name: "subscriptions_create_group_localization",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_create_group_version and subscriptions_create_group_version_localization. Create a legacy group-scoped localization without automatic version migration.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_group_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription group ID")
+                    ]),
+                    "name": .object([
+                        "type": .string("string"),
+                        "description": .string("Display name of the subscription group for this locale")
+                    ]),
+                    "locale": .object([
+                        "type": .string("string"),
+                        "description": .string("Locale code (e.g. en-US, ru-RU, de-DE, ja, zh-Hans)")
+                    ]),
+                    "custom_app_name": .object([
+                        "type": .string("string"),
+                        "description": .string("Custom app name for this locale (optional)")
+                    ])
+                ]),
+                "required": .array([.string("subscription_group_id"), .string("name"), .string("locale")])
+            ])
+        )
+    }
+
+    func getSubscriptionGroupLocalizationTool() -> Tool {
+        return Tool(
+            name: "subscriptions_get_group_localization",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_get_group_version_localization. Get a legacy group-scoped localization without automatic version migration.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "group_localization_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription group localization ID")
+                    ])
+                ]),
+                "required": .array([.string("group_localization_id")])
+            ])
+        )
+    }
+
+    func updateSubscriptionGroupLocalizationTool() -> Tool {
+        return Tool(
+            name: "subscriptions_update_group_localization",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_update_group_version_localization. Update a legacy group-scoped localization without automatic version migration.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "group_localization_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription group localization ID")
+                    ]),
+                    "name": .object([
+                        "type": .string("string"),
+                        "description": .string("New display name")
+                    ]),
+                    "custom_app_name": .object([
+                        "type": .string("string"),
+                        "description": .string("New custom app name")
+                    ])
+                ]),
+                "required": .array([.string("group_localization_id")])
+            ])
+        )
+    }
+
+    func deleteSubscriptionGroupLocalizationTool() -> Tool {
+        return Tool(
+            name: "subscriptions_delete_group_localization",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_delete_group_version_localization. Delete a legacy group-scoped localization without automatic version migration.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "group_localization_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription group localization ID to delete")
+                    ])
+                ]),
+                "required": .array([.string("group_localization_id")])
+            ])
+        )
+    }
+
+    func deleteSubscriptionPriceTool() -> Tool {
+        return Tool(
+            name: "subscriptions_delete_price",
+            description: "Delete a scheduled price change for a subscription",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_price_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription price ID to delete")
+                    ])
+                ]),
+                "required": .array([.string("subscription_price_id")])
+            ])
+        )
+    }
+
+    func submitSubscriptionTool() -> Tool {
+        return Tool(
+            name: "subscriptions_submit",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_create_version, then review_submissions_create, review_submissions_add_item, and review_submissions_submit. This tool keeps the legacy submission endpoint and never creates or selects a version automatically.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID to submit for review")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id")])
+            ])
+        )
+    }
+
+    // MARK: - Subscription Image Tools
+
+    func uploadSubscriptionImageTool() -> Tool {
+        return Tool(
+            name: "subscriptions_upload_image",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_create_version and subscriptions_upload_version_image. Upload a legacy product-scoped promotional image without automatic version migration; pre-commit failures roll back and uncertain commits are retained and reconciled.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID")
+                    ]),
+                    "file_path": .object([
+                        "type": .string("string"),
+                        "description": .string("Absolute path to the image file on disk")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id"), .string("file_path")])
+            ])
+        )
+    }
+
+    func getSubscriptionImageTool() -> Tool {
+        return Tool(
+            name: "subscriptions_get_image",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_get_version_image. Get a legacy product-scoped subscription image without automatic version migration.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "image_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription image ID")
+                    ])
+                ]),
+                "required": .array([.string("image_id")])
+            ])
+        )
+    }
+
+    func deleteSubscriptionImageTool() -> Tool {
+        return Tool(
+            name: "subscriptions_delete_image",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_delete_version_image. Delete a legacy product-scoped subscription image without automatic version migration.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "image_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription image ID to delete")
+                    ])
+                ]),
+                "required": .array([.string("image_id")])
+            ])
+        )
+    }
+
+    // MARK: - Subscription Review Screenshot Tools
+
+    func uploadSubscriptionReviewScreenshotTool() -> Tool {
+        return Tool(
+            name: "subscriptions_upload_review_screenshot",
+            description: "Upload a subscription review screenshot from an immutable snapshot, then reserve, transfer, commit, and verify Apple processing. Pre-commit failures roll back; uncertain commits are retained and reconciled. A confirmed commit can return success with deliveryPending=true while Apple continues asynchronous processing; inspect that screenshot instead of retrying.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID")
+                    ]),
+                    "file_path": .object([
+                        "type": .string("string"),
+                        "description": .string("Absolute path to the image file on disk")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id"), .string("file_path")])
+            ])
+        )
+    }
+
+    func getSubscriptionReviewScreenshotTool() -> Tool {
+        return Tool(
+            name: "subscriptions_get_review_screenshot",
+            description: "Get details of a subscription review screenshot",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "screenshot_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription review screenshot ID")
+                    ])
+                ]),
+                "required": .array([.string("screenshot_id")])
+            ])
+        )
+    }
+
+    func deleteSubscriptionReviewScreenshotTool() -> Tool {
+        return Tool(
+            name: "subscriptions_delete_review_screenshot",
+            description: "Delete a subscription review screenshot",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "screenshot_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription review screenshot ID to delete")
+                    ])
+                ]),
+                "required": .array([.string("screenshot_id")])
+            ])
+        )
+    }
+
+    // MARK: - List Tools
+
+    func listSubscriptionImagesTool() -> Tool {
+        return Tool(
+            name: "subscriptions_list_images",
+            description: "DEPRECATED since App Store Connect API 4.4.1. Use subscriptions_list_versions and subscriptions_list_version_images. List legacy product-scoped subscription images without creating or selecting a version.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID")
+                    ]),
+                    "limit": .object([
+                        "type": .string("integer"),
+                        "description": .string("Max results (default: 25, max: 200)"),
+                        "minimum": .int(1),
+                        "maximum": .int(200)
+                    ]),
+                    "next_url": .object([
+                        "type": .string("string"),
+                        "description": .string("Pagination URL from previous response to fetch next page")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id")])
+            ])
+        )
+    }
+
+    func getSubscriptionReviewScreenshotForSubscriptionTool() -> Tool {
+        return Tool(
+            name: "subscriptions_get_review_screenshot_for_subscription",
+            description: "Get the review screenshot for a subscription by subscription ID (singular resource — one per subscription)",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "subscription_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Subscription ID")
+                    ])
+                ]),
+                "required": .array([.string("subscription_id")])
+            ])
+        )
+    }
+}

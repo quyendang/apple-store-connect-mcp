@@ -1,0 +1,12 @@
+.git
+.build
+.swiftpm
+cloud-data
+.env
+.env.*
+*.p8
+*.pem
+*.key
+companies.json
+companies.*.json
+.DS_Store

@@ -1,0 +1,684 @@
+import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+import Logging
+
+struct ASCDeleteReceipt: Sendable {
+    let data: Data
+    let statusCode: Int
+}
+
+struct ASCMutationReceipt: Sendable {
+    let data: Data
+    let statusCode: Int
+}
+
+private struct HTTPResponsePayload: Sendable {
+    let data: Data
+    let statusCode: Int
+}
+
+/// HTTP client for App Store Connect API using URLSession
+public actor HTTPClient {
+    private let transport: any HTTPTransport
+    private let jwtService: JWTService
+    private nonisolated let baseURL: String
+    private let logger = Logger(label: "com.asc-mcp.HTTPClient")
+    private var lastRateLimitInfo: ASCRateLimitInfo?
+
+    // Retry configuration
+    private let maxRetries: Int
+    private let retryableStatusCodes = Set([408, 429, 500, 502, 503, 504])
+
+    public init(
+        jwtService: JWTService,
+        baseURL: String,
+        transport: (any HTTPTransport)? = nil,
+        maxRetries: Int = 3
+    ) async {
+        self.jwtService = jwtService
+        self.baseURL = baseURL
+        self.maxRetries = maxRetries
+
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 60
+        config.waitsForConnectivity = true
+        self.transport = transport ?? URLSessionTransport(configuration: config)
+    }
+
+    /// Returns the last App Store Connect rate-limit state observed by this client.
+    /// - Returns: Last parsed rate-limit header values, or nil if no rate-limit headers were seen.
+    public func getLastRateLimitInfo() -> ASCRateLimitInfo? {
+        lastRateLimitInfo
+    }
+
+    nonisolated func validatedScopedLink(
+        _ fullURL: String,
+        scope: PaginationScope
+    ) throws -> PaginationRequest {
+        try validatedPaginationRequest(fullURL, baseURL: baseURL, scope: scope)
+    }
+
+    /// Fetches a pagination link only when it remains inside the supplied collection scope.
+    /// - Parameters:
+    ///   - nextURL: Absolute or root-relative URL returned by an App Store Connect `links.next` field.
+    ///   - scope: Exact collection path and query invariants established by the originating tool call.
+    /// - Returns: Raw response data for the validated next page.
+    /// - Throws: `ASCError` when the link is invalid, leaves the configured origin or scope, or the request fails.
+    public func getPage(_ nextURL: String, scope: PaginationScope) async throws -> Data {
+        let page = try validatedScopedLink(nextURL, scope: scope)
+        return try await get(page.path, parameters: page.parameters)
+    }
+
+    /// Performs a GET request that must return HTTP 200.
+    /// - Parameters:
+    ///   - endpoint: Root-relative App Store Connect API path.
+    ///   - parameters: Query parameters to append to the request.
+    /// - Returns: Raw response body.
+    /// - Throws: `ASCError` when endpoint validation, authentication, transport, status validation, or retry handling fails.
+    public func get(_ endpoint: String, parameters: [String: String] = [:]) async throws -> Data {
+        let response = try await request(.GET, endpoint: endpoint, parameters: parameters)
+        guard response.statusCode == 200 else {
+            throw ASCError.api(
+                "GET returned unexpected successful HTTP status \(response.statusCode); expected 200",
+                response.statusCode
+            )
+        }
+        return response.data
+    }
+
+    /// Performs a POST request and validates its exact success status.
+    /// - Parameters:
+    ///   - endpoint: Root-relative App Store Connect API path.
+    ///   - body: Optional raw request body.
+    ///   - expectedStatusCode: Exact successful status required by the Apple operation contract.
+    /// - Returns: Raw response body after exact-status and HTTP 204 body validation.
+    /// - Throws: `ASCError`, including an indeterminate or committed-but-unverified mutation state when applicable.
+    public func post(
+        _ endpoint: String,
+        body: Data? = nil,
+        expectedStatusCode: Int = 201
+    ) async throws -> Data {
+        let receipt = try await postReceipt(endpoint, body: body)
+        return try Self.validatedMutationData(
+            receipt,
+            method: .POST,
+            expectedStatusCode: expectedStatusCode
+        )
+    }
+
+    func postReceipt(_ endpoint: String, body: Data? = nil) async throws -> ASCMutationReceipt {
+        let response = try await request(.POST, endpoint: endpoint, body: body)
+        return ASCMutationReceipt(data: response.data, statusCode: response.statusCode)
+    }
+
+    /// Performs a PATCH request and validates its exact success status.
+    /// - Parameters:
+    ///   - endpoint: Root-relative App Store Connect API path.
+    ///   - body: Raw request body.
+    ///   - expectedStatusCode: Exact successful status required by the Apple operation contract.
+    /// - Returns: Raw response body after exact-status and HTTP 204 body validation.
+    /// - Throws: `ASCError`, including an indeterminate or committed-but-unverified mutation state when applicable.
+    public func patch(
+        _ endpoint: String,
+        body: Data,
+        expectedStatusCode: Int = 200
+    ) async throws -> Data {
+        let receipt = try await patchReceipt(endpoint, body: body)
+        return try Self.validatedMutationData(
+            receipt,
+            method: .PATCH,
+            expectedStatusCode: expectedStatusCode
+        )
+    }
+
+    func patchReceipt(_ endpoint: String, body: Data) async throws -> ASCMutationReceipt {
+        let response = try await request(.PATCH, endpoint: endpoint, body: body)
+        return ASCMutationReceipt(data: response.data, statusCode: response.statusCode)
+    }
+
+    /// Performs a PUT request and validates its exact success status.
+    /// - Parameters:
+    ///   - endpoint: Root-relative App Store Connect API path.
+    ///   - body: Raw request body.
+    ///   - expectedStatusCode: Exact successful status required by the Apple operation contract.
+    /// - Returns: Raw response body after exact-status and HTTP 204 body validation.
+    /// - Throws: `ASCError` when request, status, or response-body validation fails.
+    public func put(
+        _ endpoint: String,
+        body: Data,
+        expectedStatusCode: Int = 200
+    ) async throws -> Data {
+        let response = try await request(.PUT, endpoint: endpoint, body: body)
+        let receipt = ASCMutationReceipt(data: response.data, statusCode: response.statusCode)
+        return try Self.validatedMutationData(
+            receipt,
+            method: .PUT,
+            expectedStatusCode: expectedStatusCode
+        )
+    }
+
+    /// Performs a DELETE request that must return an empty HTTP 204 response.
+    /// - Parameter endpoint: Root-relative App Store Connect API path.
+    /// - Returns: The empty response body.
+    /// - Throws: `ASCError`, including an indeterminate or committed-but-unverified deletion state when applicable.
+    public func delete(_ endpoint: String) async throws -> Data {
+        let receipt = try await deleteReceipt(endpoint)
+        guard receipt.statusCode == 204, receipt.data.isEmpty else {
+            throw ASCError.deleteCommittedUnverified(statusCode: receipt.statusCode)
+        }
+        return receipt.data
+    }
+
+    func deleteReceipt(_ endpoint: String) async throws -> ASCDeleteReceipt {
+        let response = try await request(.DELETE, endpoint: endpoint)
+        return ASCDeleteReceipt(data: response.data, statusCode: response.statusCode)
+    }
+
+    /// Performs a relationship DELETE request that must return an empty HTTP 204 response.
+    /// - Parameters:
+    ///   - endpoint: Root-relative App Store Connect API path.
+    ///   - body: Raw relationship request body.
+    /// - Returns: The empty response body.
+    /// - Throws: `ASCError`, including an indeterminate or committed-but-unverified deletion state when applicable.
+    public func delete(_ endpoint: String, body: Data) async throws -> Data {
+        let receipt = try await deleteReceipt(endpoint, body: body)
+        guard receipt.statusCode == 204, receipt.data.isEmpty else {
+            throw ASCError.deleteCommittedUnverified(statusCode: receipt.statusCode)
+        }
+        return receipt.data
+    }
+
+    func deleteReceipt(_ endpoint: String, body: Data) async throws -> ASCDeleteReceipt {
+        let response = try await request(.DELETE, endpoint: endpoint, body: body)
+        return ASCDeleteReceipt(data: response.data, statusCode: response.statusCode)
+    }
+
+    /// GET request with custom Accept header (for gzip reports like salesReports/financeReports)
+    /// - Returns: Raw response data (may be gzip-compressed)
+    public func getRaw(_ endpoint: String, parameters: [String: String] = [:], accept: String) async throws -> Data {
+        let response = try await request(
+            .GET,
+            endpoint: endpoint,
+            parameters: parameters,
+            acceptHeader: accept
+        )
+        guard response.statusCode == 200 else {
+            throw ASCError.api(
+                "GET returned unexpected successful HTTP status \(response.statusCode); expected 200",
+                response.statusCode
+            )
+        }
+        return response.data
+    }
+
+    /// Base method for HTTP requests with retry logic
+    private func request(
+        _ method: HTTPMethod,
+        endpoint: String,
+        parameters: [String: String] = [:],
+        body: Data? = nil,
+        acceptHeader: String = "application/json"
+    ) async throws -> HTTPResponsePayload {
+
+        let endpoint = try validatedASCAPIEndpoint(endpoint)
+
+        // Safe URL construction
+        guard var urlComponents = URLComponents(string: "\(baseURL)\(endpoint)") else {
+            logger.error("Invalid URL components: \(self.baseURL)\(endpoint)")
+            throw ASCError.network("Invalid URL: \(baseURL)\(endpoint)")
+        }
+
+        if !parameters.isEmpty {
+            urlComponents.queryItems = parameters.map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+
+        guard let url = urlComponents.url else {
+            logger.error("Failed to create URL from components")
+            throw ASCError.network("Failed to create URL from components")
+        }
+
+        // Create URLRequest
+        var request = URLRequest(url: url)
+        request.httpMethod = method.rawValue
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(acceptHeader, forHTTPHeaderField: "Accept")
+
+        // Add body if present
+        if let body = body {
+            request.httpBody = body
+        }
+
+        let retriesAmbiguousFailures = method == .GET || method == .PUT
+        let maxAttempts = maxRetries
+
+        for attempt in 0..<maxAttempts {
+            // Get fresh token for each attempt (JWTService caches valid tokens)
+            let token = try await jwtService.getToken()
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+            logger.debug("[\(method.rawValue)] \(url.absoluteString) - Attempt \(attempt + 1)/\(maxAttempts)")
+
+            let startTime = Date()
+            let data: Data
+            let httpResponse: HTTPURLResponse
+            do {
+                (data, httpResponse) = try await transport.data(for: request)
+            } catch let error as ASCError {
+                if let outcomeUnknown = Self.mutationOutcomeUnknownError(
+                    method: method,
+                    from: error
+                ) {
+                    throw outcomeUnknown
+                }
+                throw error
+            } catch {
+                if error is CancellationError, !method.isNonIdempotentMutation {
+                    throw CancellationError()
+                }
+                if attempt < maxAttempts - 1 && retriesAmbiguousFailures {
+                    let delay = calculateRetryDelay(attempt: attempt, response: nil)
+                    logger.warning("Network error: \(error.localizedDescription), retrying in \(delay)s")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+
+                logger.error("Network request failed: \(error.localizedDescription)")
+                let networkError = ASCError.network("HTTP request failed: \(error.localizedDescription)")
+                if let outcomeUnknown = Self.mutationOutcomeUnknownError(
+                    method: method,
+                    from: networkError
+                ) {
+                    throw outcomeUnknown
+                }
+                throw networkError
+            }
+
+            let duration = Date().timeIntervalSince(startTime)
+            updateRateLimitInfo(from: httpResponse)
+            logger.debug("Response: \(httpResponse.statusCode) in \(String(format: "%.2f", duration))s")
+
+            if 200...299 ~= httpResponse.statusCode {
+                return HTTPResponsePayload(data: data, statusCode: httpResponse.statusCode)
+            }
+
+            let apiErrorResponse = decodeAPIErrorResponse(from: data)
+            let errorMessage = apiErrorResponse?.errors.map(\.safeDescription).joined(separator: "; ")
+                ?? "Unknown App Store Connect API error"
+
+            if httpResponse.statusCode == 401 && attempt < maxAttempts - 1 {
+                logger.warning("401 Unauthorized, refreshing JWT token and retrying")
+                _ = try await jwtService.refreshToken()
+                try await Task.sleep(nanoseconds: 500_000_000)
+                continue
+            }
+
+            if attempt < maxAttempts - 1 {
+                let isRetryable: Bool
+                if retriesAmbiguousFailures {
+                    isRetryable = retryableStatusCodes.contains(httpResponse.statusCode)
+                } else {
+                    isRetryable = httpResponse.statusCode == 429
+                }
+
+                if isRetryable {
+                    let delay = calculateRetryDelay(attempt: attempt, response: httpResponse)
+                    logger.warning("Retryable error \(httpResponse.statusCode), waiting \(delay)s before retry")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+            }
+
+            logger.error("HTTP error \(httpResponse.statusCode): \(Redactor.redact(errorMessage))")
+            let responseError: ASCError
+            if let apiErrorResponse {
+                responseError = .apiResponse(apiErrorResponse, httpResponse.statusCode)
+            } else {
+                responseError = .api(errorMessage, httpResponse.statusCode)
+            }
+            if let outcomeUnknown = Self.mutationOutcomeUnknownError(
+                method: method,
+                from: responseError
+            ) {
+                throw outcomeUnknown
+            }
+            throw responseError
+        }
+
+        throw ASCError.network("Maximum retry attempts exceeded before a request was sent")
+    }
+
+    private static func mutationOutcomeUnknownError(
+        method: HTTPMethod,
+        from error: ASCError
+    ) -> ASCError? {
+        guard method.isNonIdempotentMutation else { return nil }
+        switch error {
+        case .mutationOutcomeUnknown, .deleteOutcomeUnknown:
+            return nil
+        case .network(let message):
+            return outcomeUnknownError(method: method, cause: .network(message))
+        case .api(let message, let statusCode)
+            where (300...399).contains(statusCode)
+                || statusCode == 408
+                || statusCode >= 500:
+            return outcomeUnknownError(method: method, cause: .api(message, statusCode))
+        case .apiResponse(_, let statusCode)
+            where (300...399).contains(statusCode)
+                || statusCode == 408
+                || statusCode >= 500:
+            return outcomeUnknownError(method: method, cause: error)
+        default:
+            return nil
+        }
+    }
+
+    private static func outcomeUnknownError(
+        method: HTTPMethod,
+        cause: ASCError
+    ) -> ASCError {
+        if method == .DELETE {
+            return .deleteOutcomeUnknown(cause)
+        }
+        return .mutationOutcomeUnknown(method: method.rawValue, cause: cause)
+    }
+
+    private static func validatedMutationData(
+        _ receipt: ASCMutationReceipt,
+        method: HTTPMethod,
+        expectedStatusCode: Int
+    ) throws -> Data {
+        guard receipt.statusCode == expectedStatusCode else {
+            throw ASCError.mutationCommittedUnverified(
+                method: method.rawValue,
+                expectedStatusCode: expectedStatusCode,
+                actualStatusCode: receipt.statusCode,
+                cause: nil
+            )
+        }
+        guard expectedStatusCode != 204 || receipt.data.isEmpty else {
+            throw ASCError.mutationCommittedUnverified(
+                method: method.rawValue,
+                expectedStatusCode: expectedStatusCode,
+                actualStatusCode: receipt.statusCode,
+                cause: .parsing("HTTP 204 response must not contain a response body")
+            )
+        }
+        return receipt.data
+    }
+
+    /// Calculates retry delay with exponential backoff
+    private func calculateRetryDelay(attempt: Int, response: HTTPURLResponse?) -> Double {
+        // Check Retry-After header
+        if let response = response,
+           let retryAfterString = response.value(forHTTPHeaderField: "Retry-After"),
+           let retryAfter = Self.parseRetryAfter(retryAfterString) {
+            return retryAfter
+        }
+
+        // Exponential backoff with jitter
+        let baseDelay = pow(2.0, Double(attempt))
+        let jitter = Double.random(in: 0...1)
+        return min(baseDelay + jitter, 30) // Maximum 30 seconds
+    }
+
+    private func updateRateLimitInfo(from response: HTTPURLResponse) {
+        let appleHeader = response.value(forHTTPHeaderField: "X-Rate-Limit")
+            .flatMap(Self.parseAppleRateLimitHeader)
+        let limit = appleHeader?.limit ?? response.integerHeader("X-Rate-Limit-User-Hour-Limit")
+        let remaining = appleHeader?.remaining ?? response.integerHeader("X-Rate-Limit-User-Hour-Remaining")
+        let retryAfter = response.value(forHTTPHeaderField: "Retry-After")
+            .flatMap { Self.parseRetryAfter($0) }
+
+        guard limit != nil || remaining != nil || retryAfter != nil else {
+            return
+        }
+
+        lastRateLimitInfo = ASCRateLimitInfo(
+            userHourLimit: limit,
+            userHourRemaining: remaining,
+            retryAfterSeconds: retryAfter,
+            observedAt: Date()
+        )
+    }
+
+    private func decodeAPIErrorResponse(from data: Data) -> ASCAPIErrorResponse? {
+        try? JSONDecoder().decode(ASCAPIErrorResponse.self, from: data)
+    }
+
+    private static func parseAppleRateLimitHeader(_ header: String) -> (limit: Int?, remaining: Int?) {
+        var limit: Int?
+        var remaining: Int?
+
+        for part in header.split(separator: ";") {
+            let pair = part.split(separator: ":", maxSplits: 1).map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            guard pair.count == 2 else { continue }
+
+            switch pair[0] {
+            case "user-hour-lim":
+                limit = Int(pair[1])
+            case "user-hour-rem":
+                remaining = Int(pair[1])
+            default:
+                continue
+            }
+        }
+
+        return (limit, remaining)
+    }
+
+    private static func parseRetryAfter(_ value: String, now: Date = Date()) -> Double? {
+        if let seconds = Double(value.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return max(0, seconds)
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+
+        guard let date = formatter.date(from: value) else {
+            return nil
+        }
+
+        return max(0, date.timeIntervalSince(now))
+    }
+}
+
+/// HTTP methods
+private enum HTTPMethod: String {
+    case GET = "GET"
+    case POST = "POST"
+    case PUT = "PUT"
+    case PATCH = "PATCH"
+    case DELETE = "DELETE"
+
+    var isNonIdempotentMutation: Bool {
+        self == .POST || self == .PATCH || self == .DELETE
+    }
+}
+
+private extension HTTPURLResponse {
+    func integerHeader(_ name: String) -> Int? {
+        value(forHTTPHeaderField: name).flatMap(Int.init)
+    }
+}
+
+// MARK: - Convenience Methods
+
+extension HTTPClient {
+    /// Fetches and decodes a pagination link after enforcing its originating collection scope.
+    /// - Parameters:
+    ///   - nextURL: Absolute or root-relative URL returned by an App Store Connect `links.next` field.
+    ///   - scope: Exact collection path and query invariants established by the originating tool call.
+    ///   - type: Response type expected from the originating collection.
+    /// - Returns: Decoded response for the validated next page.
+    /// - Throws: `ASCError` when validation, transport, or decoding fails.
+    public func getPage<T: Decodable & Sendable>(
+        _ nextURL: String,
+        scope: PaginationScope,
+        as type: T.Type
+    ) async throws -> T {
+        let data = try await getPage(nextURL, scope: scope)
+
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            throw ASCError.parsing("Failed to decode \(type): \(error.localizedDescription)")
+        }
+    }
+
+    /// Fetches an HTTP 200 JSON resource and decodes it as the requested type.
+    /// - Parameters:
+    ///   - endpoint: Root-relative App Store Connect API path.
+    ///   - parameters: Query parameters to append to the request.
+    ///   - type: Expected response type.
+    /// - Returns: Decoded response value.
+    /// - Throws: `ASCError` when request, status, or decoding fails.
+    public func get<T: Decodable & Sendable>(_ endpoint: String, parameters: [String: String] = [:], as type: T.Type) async throws -> T {
+        let data = try await get(endpoint, parameters: parameters)
+
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            throw ASCError.parsing("Failed to decode \(type): \(error.localizedDescription)")
+        }
+    }
+
+    /// Encodes a JSON body, performs an exact-status POST, and decodes the response.
+    /// - Parameters:
+    ///   - endpoint: Root-relative App Store Connect API path.
+    ///   - body: Encodable request body.
+    ///   - expectedStatusCode: Exact successful status required by the Apple operation contract.
+    ///   - responseType: Expected response type.
+    /// - Returns: Decoded response value.
+    /// - Throws: `ASCError`, including an indeterminate or committed-but-unverified mutation state when applicable.
+    public func post<T: Codable & Sendable, R: Codable & Sendable>(
+        _ endpoint: String,
+        body: T,
+        expectedStatusCode: Int = 201,
+        as responseType: R.Type
+    ) async throws -> R {
+        let bodyData: Data
+        do {
+            bodyData = try JSONEncoder().encode(body)
+        } catch {
+            throw ASCError.parsing("Failed to encode request body: \(error.localizedDescription)")
+        }
+
+        let responseData = try await post(
+            endpoint,
+            body: bodyData,
+            expectedStatusCode: expectedStatusCode
+        )
+
+        do {
+            return try JSONDecoder().decode(responseType, from: responseData)
+        } catch {
+            throw ASCError.mutationCommittedUnverified(
+                method: HTTPMethod.POST.rawValue,
+                expectedStatusCode: expectedStatusCode,
+                actualStatusCode: expectedStatusCode,
+                cause: .parsing("Failed to decode \(responseType): \(error.localizedDescription)")
+            )
+        }
+    }
+
+    /// Encodes a JSON body, performs an exact-status PATCH, and decodes the response.
+    /// - Parameters:
+    ///   - endpoint: Root-relative App Store Connect API path.
+    ///   - body: Encodable request body.
+    ///   - expectedStatusCode: Exact successful status required by the Apple operation contract.
+    ///   - responseType: Expected response type.
+    /// - Returns: Decoded response value.
+    /// - Throws: `ASCError`, including an indeterminate or committed-but-unverified mutation state when applicable.
+    public func patch<T: Codable & Sendable, R: Codable & Sendable>(
+        _ endpoint: String,
+        body: T,
+        expectedStatusCode: Int = 200,
+        as responseType: R.Type
+    ) async throws -> R {
+        let bodyData: Data
+        do {
+            bodyData = try JSONEncoder().encode(body)
+        } catch {
+            throw ASCError.parsing("Failed to encode request body: \(error.localizedDescription)")
+        }
+
+        let responseData = try await patch(
+            endpoint,
+            body: bodyData,
+            expectedStatusCode: expectedStatusCode
+        )
+
+        do {
+            return try JSONDecoder().decode(responseType, from: responseData)
+        } catch {
+            throw ASCError.mutationCommittedUnverified(
+                method: HTTPMethod.PATCH.rawValue,
+                expectedStatusCode: expectedStatusCode,
+                actualStatusCode: expectedStatusCode,
+                cause: .parsing("Failed to decode \(responseType): \(error.localizedDescription)")
+            )
+        }
+    }
+
+    /// Encodes a JSON body, performs an exact-status PUT, and decodes the response.
+    /// - Parameters:
+    ///   - endpoint: Root-relative App Store Connect API path.
+    ///   - body: Encodable request body.
+    ///   - expectedStatusCode: Exact successful status required by the Apple operation contract.
+    ///   - responseType: Expected response type.
+    /// - Returns: Decoded response value.
+    /// - Throws: `ASCError` when encoding, request, status, or decoding fails.
+    public func put<T: Codable & Sendable, R: Codable & Sendable>(
+        _ endpoint: String,
+        body: T,
+        expectedStatusCode: Int = 200,
+        as responseType: R.Type
+    ) async throws -> R {
+        let bodyData: Data
+        do {
+            bodyData = try JSONEncoder().encode(body)
+        } catch {
+            throw ASCError.parsing("Failed to encode request body: \(error.localizedDescription)")
+        }
+
+        let responseData = try await put(
+            endpoint,
+            body: bodyData,
+            expectedStatusCode: expectedStatusCode
+        )
+
+        do {
+            return try JSONDecoder().decode(responseType, from: responseData)
+        } catch {
+            throw ASCError.mutationCommittedUnverified(
+                method: HTTPMethod.PUT.rawValue,
+                expectedStatusCode: expectedStatusCode,
+                actualStatusCode: expectedStatusCode,
+                cause: .parsing("Failed to decode \(responseType): \(error.localizedDescription)")
+            )
+        }
+    }
+
+    /// Encodes a relationship body and performs a DELETE requiring an empty HTTP 204 response.
+    /// - Parameters:
+    ///   - endpoint: Root-relative App Store Connect API path.
+    ///   - body: Encodable relationship request body.
+    /// - Returns: The empty response body.
+    /// - Throws: `ASCError`, including an indeterminate or committed-but-unverified deletion state when applicable.
+    public func delete<T: Codable & Sendable>(_ endpoint: String, body: T) async throws -> Data {
+        let bodyData: Data
+        do {
+            bodyData = try JSONEncoder().encode(body)
+        } catch {
+            throw ASCError.parsing("Failed to encode request body: \(error.localizedDescription)")
+        }
+        return try await delete(endpoint, body: bodyData)
+    }
+}

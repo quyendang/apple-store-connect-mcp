@@ -1,0 +1,562 @@
+{
+  "workerKey": "builds",
+  "tools": [
+    {
+      "tool": "builds_find_by_number",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "builds_getCollection",
+          "method": "get",
+          "path": "/v1/builds",
+          "role": "primary",
+          "optionalParameterClassifications": [
+            {
+              "location": "query",
+              "appleName": "include",
+              "disposition": "internalControl",
+              "reason": "The finder fixes include to app, buildBetaDetail, preReleaseVersion, and buildUpload so a stable match and upload-state projection can be produced.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit",
+              "disposition": "internalControl",
+              "reason": "The singular finder fixes limit to one after applying deterministic filters and sort.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "exists[usesNonExemptEncryption]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Encryption-presence filtering belongs to builds_list; this tool is intentionally scoped to exact build-number lookup.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[appStoreVersion]",
+              "disposition": "intentionallyOmitted",
+              "reason": "App Store version filtering belongs to builds_list; the finder supports platform and pre-release disambiguation.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[betaAppReviewSubmission.betaReviewState]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Beta review-state filtering belongs to builds_list, not exact build-number lookup.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[betaGroups]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Beta-group filtering belongs to builds_list, not exact build-number lookup.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[buildAudienceType]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Audience filtering belongs to builds_list, not exact build-number lookup.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[expired]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Expiration filtering belongs to builds_list, not exact build-number lookup.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[id]",
+              "disposition": "intentionallyOmitted",
+              "reason": "A caller with a build ID should use builds_get; this finder is keyed by app and build number.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[processingState]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Processing-state filtering belongs to builds_list, not exact build-number lookup.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "filter[usesNonExemptEncryption]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Encryption-value filtering belongs to builds_list, not exact build-number lookup.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[betaBuildLocalizations]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Beta build localizations are not included by the finder.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[betaGroups]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Beta groups are not included by the finder.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[buildBundles]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Build bundles are not included by the finder.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[icons]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Build icons are not included by the finder.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[individualTesters]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Individual testers are not included by the finder.",
+              "reviewAtSpec": "4.4.1"
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "app_id",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[app]"
+        },
+        {
+          "toolField": "build_number",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[version]"
+        },
+        {
+          "toolField": "pre_release_platforms",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[preReleaseVersion.platform]"
+        },
+        {
+          "toolField": "pre_release_versions",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[preReleaseVersion.version]"
+        },
+        {
+          "toolField": "pre_release_version_ids",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[preReleaseVersion]"
+        },
+        {
+          "toolField": "sort",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "sort"
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "builds_getCollection",
+            "statusCode": "200",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+          {
+            "outputField": "build",
+            "operationId": "builds_getCollection",
+            "jsonPointer": "/data/*",
+            "localRole": "firstMatchingBuildProjection"
+          },
+          {
+            "outputField": "included",
+            "operationId": "builds_getCollection",
+            "jsonPointer": "/included"
+          },
+          {
+            "outputField": "success",
+            "localRole": "True when a matching build exists; false is a local empty-result projection."
+          }
+        ]
+      },
+      "note": "Exact filter workflow with pre-release platform/version disambiguation and deterministic sorting; include is fixed to app, buildBetaDetail, preReleaseVersion, and buildUpload, and limit remains fixed for the singular projection."
+    },
+    {
+      "tool": "builds_get",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "builds_getInstance",
+          "method": "get",
+          "path": "/v1/builds/{id}",
+          "role": "primary",
+          "optionalParameterClassifications": [
+            {
+              "location": "query",
+              "appleName": "limit[betaBuildLocalizations]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Beta build localizations are available through builds_list_beta_localizations and are not included by this detail tool.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[betaGroups]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Beta groups are available through builds_get_beta_groups and are not included by this detail tool.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[buildBundles]",
+              "disposition": "intentionallyOmitted",
+              "reason": "The detail tool intentionally returns Apple's bounded build-bundle include preview rather than exposing nested JSON:API pagination controls.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[icons]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Build icons are not included by this detail tool.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[individualTesters]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Individual testers are available through dedicated paginated tools and are not included here.",
+              "reviewAtSpec": "4.4.1"
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "build_id",
+          "sourceKind": "parameter",
+          "operationId": "builds_getInstance",
+          "location": "path",
+          "appleName": "id"
+        },
+        {
+          "toolField": "include_beta_detail",
+          "sourceKind": "parameter",
+          "operationId": "builds_getInstance",
+          "location": "query",
+          "appleName": "include"
+        },
+        {
+          "toolField": "include_app",
+          "sourceKind": "parameter",
+          "operationId": "builds_getInstance",
+          "location": "query",
+          "appleName": "include"
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "builds_getInstance",
+            "statusCode": "200",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+          {
+            "outputField": "build",
+            "operationId": "builds_getInstance",
+            "jsonPointer": "/data"
+          },
+          {
+            "outputField": "included",
+            "operationId": "builds_getInstance",
+            "jsonPointer": "/included"
+          }
+        ]
+      },
+      "note": "The two booleans derive part of the comma-separated include parameter; preReleaseVersion, buildBundles, and buildUpload are always added. Included BuildUpload state is projected without upload-operation credentials. Output is a reduced projection and has no MCP output schema."
+    },
+    {
+      "tool": "builds_list",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "builds_getCollection",
+          "method": "get",
+          "path": "/v1/builds",
+          "role": "primary",
+          "optionalParameterClassifications": [
+            {
+              "location": "query",
+              "appleName": "include",
+              "disposition": "internalControl",
+              "reason": "The list fixes include to app, buildBetaDetail, preReleaseVersion, and buildUpload, which are projected in its included output.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[betaBuildLocalizations]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Beta build localizations are not included by this list projection.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[betaGroups]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Beta groups are not included by this list projection.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[buildBundles]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Build bundles are not included by this list projection.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[icons]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Build icons are not included by this list projection.",
+              "reviewAtSpec": "4.4.1"
+            },
+            {
+              "location": "query",
+              "appleName": "limit[individualTesters]",
+              "disposition": "intentionallyOmitted",
+              "reason": "Individual testers are available through dedicated TestFlight tools and are not included here.",
+              "reviewAtSpec": "4.4.1"
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "app_id",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[app]"
+        },
+        {
+          "toolField": "version",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[version]"
+        },
+        {
+          "toolField": "processing_state",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[processingState]"
+        },
+        {
+          "toolField": "expired",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[expired]"
+        },
+        {
+          "toolField": "app_store_version_ids",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[appStoreVersion]"
+        },
+        {
+          "toolField": "beta_review_states",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[betaAppReviewSubmission.betaReviewState]"
+        },
+        {
+          "toolField": "beta_group_ids",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[betaGroups]"
+        },
+        {
+          "toolField": "build_audience_types",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[buildAudienceType]"
+        },
+        {
+          "toolField": "build_ids",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[id]"
+        },
+        {
+          "toolField": "pre_release_platforms",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[preReleaseVersion.platform]"
+        },
+        {
+          "toolField": "pre_release_versions",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[preReleaseVersion.version]"
+        },
+        {
+          "toolField": "pre_release_version_ids",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[preReleaseVersion]"
+        },
+        {
+          "toolField": "uses_non_exempt_encryption",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "filter[usesNonExemptEncryption]"
+        },
+        {
+          "toolField": "uses_non_exempt_encryption_set",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "exists[usesNonExemptEncryption]"
+        },
+        {
+          "toolField": "limit",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "limit"
+        },
+        {
+          "toolField": "sort",
+          "sourceKind": "parameter",
+          "operationId": "builds_getCollection",
+          "location": "query",
+          "appleName": "sort"
+        },
+        {
+          "toolField": "next_url",
+          "sourceKind": "local",
+          "localRole": "Strict Apple continuation URL for this exact collection. The caller must repeat every originating list control, including the effective/default limit, filters, sort, include, fields, and nested limits when supported; the exact query and a non-empty cursor are validated before sending the continuation request."
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "builds_getCollection",
+            "statusCode": "200",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+          {
+            "outputField": "builds",
+            "operationId": "builds_getCollection",
+            "jsonPointer": "/data"
+          },
+          {
+            "outputField": "next_url",
+            "operationId": "builds_getCollection",
+            "jsonPointer": "/links/next"
+          },
+          {
+            "outputField": "count",
+            "localRole": "Count of projected resources returned on this page."
+          },
+          {
+            "outputField": "total",
+            "operationId": "builds_getCollection",
+            "jsonPointer": "/meta/paging/total"
+          },
+          {
+            "outputField": "included",
+            "operationId": "builds_getCollection",
+            "jsonPointer": "/included"
+          }
+        ]
+      },
+      "note": "Apple makes filter[app] optional, but the public tool requires app_id. Current collection filters accept scalar or array values; app, buildBetaDetail, preReleaseVersion, and buildUpload included resources are preserved; and current Build attributes are projected without upload-operation credentials."
+    },
+    {
+      "tool": "builds_list_for_version",
+      "kind": "direct",
+      "status": "partial",
+      "effect": "read",
+      "implementationState": "asBuilt",
+      "operations": [
+        {
+          "operationId": "appStoreVersions_build_getToOneRelated",
+          "method": "get",
+          "path": "/v1/appStoreVersions/{id}/build",
+          "role": "primary"
+        }
+      ],
+      "fields": [
+        {
+          "toolField": "version_id",
+          "sourceKind": "parameter",
+          "operationId": "appStoreVersions_build_getToOneRelated",
+          "location": "path",
+          "appleName": "id"
+        }
+      ],
+      "response": {
+        "mode": "projection",
+        "sources": [
+          {
+            "operationId": "appStoreVersions_build_getToOneRelated",
+            "statusCode": "200",
+            "mediaType": "application/json"
+          }
+        ],
+        "fields": [
+          {
+            "outputField": "build",
+            "operationId": "appStoreVersions_build_getToOneRelated",
+            "jsonPointer": "/data"
+          }
+        ]
+      },
+      "note": "Despite the public name and description, Apple returns the single build related to an App Store version, not a build collection."
+    }
+  ],
+  "implementationAliases": []
+}
