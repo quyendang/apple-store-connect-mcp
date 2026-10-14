@@ -93,3 +93,13 @@ CI kiểm tra Linux Swift 6.2, macOS và Docker image. CI không chứng minh cr
 ## Nguồn upstream
 
 Dựa trên `zelentsov-dev/asc-mcp`, commit `3081cc34dadaaee7594c3d92309eabb9fbc460e0`, giữ nguyên giấy phép MIT và attribution. Phần transport/cloud được bổ sung cho repository này.
+
+## Chức năng công cụ cloud
+
+| Công cụ | Trả về | Mục đích |
+|---|---|---|
+| `bridge_context_create` | `context_id` | Chọn công ty độc lập trong MCP không handshake |
+| `bridge_files_create_upload` | Link upload, endpoint POST, expiry, giới hạn bytes | Chuyển asset từ trình duyệt/CI lên Volume |
+| `bridge_files_list` | Danh sách file ID, đường dẫn, kích thước, ngày tạo | Dùng lại asset thuộc connection hiện tại |
+| `bridge_jobs_submit` | Job ID, operation ID, context, trạng thái | Chạy công cụ gốc trong nền với dedupe và account snapshot |
+| `bridge_jobs_get` | Trạng thái, recovery flags, kết quả gốc đầy đủ | Theo dõi tiến độ và lấy kết quả sau khi HTTP request đã kết thúc |

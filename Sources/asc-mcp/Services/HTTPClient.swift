@@ -44,7 +44,9 @@ public actor HTTPClient {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
+        #if !os(Linux)
         config.waitsForConnectivity = true
+        #endif
         self.transport = transport ?? URLSessionTransport(configuration: config)
     }
 

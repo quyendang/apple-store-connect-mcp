@@ -30,6 +30,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Railway image
         run: docker build -t apple-store-connect-mcp:ci .
+      - name: Real MCP in the final Railway image
+        run: python3 Scripts/ci/http_mcp_smoke.py --binary Scripts/ci/docker_mcp_launcher.sh
   macos:
     runs-on: macos-15
     timeout-minutes: 30

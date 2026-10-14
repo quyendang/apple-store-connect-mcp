@@ -31,7 +31,7 @@ def run(binary):
             port = sock.getsockname()[1]
         origin = f"http://127.0.0.1:{port}"
         password, automation = secrets.token_hex(32), secrets.token_hex(32)
-        config = {"companies": [{"id": name, "name": name, "key_id": "TEST", "issuer_id": "TEST", "key_path": str(key)} for name in ["alpha", "beta"]]}
+        config = {"companies": [{"id": name, "name": name, "key_id": "TEST", "issuer_id": "TEST", "key_content": key.read_text()} for name in ["alpha", "beta"]]}
         env = dict(os.environ, MCP_PUBLIC_URL=origin, MCP_ADMIN_PASSWORD=password, MCP_BEARER_TOKEN=automation, PORT=str(port), MCP_DATA_DIR=str(tmp / "data"), ASC_COMPANIES_JSON=json.dumps(config), ASC_TRANSPORT="http")
         log = open(tmp / "server.log", "wb")
         process = subprocess.Popen([str(Path(binary).resolve()), "--http"], env=env, stdout=log, stderr=log)

@@ -535,9 +535,6 @@ public actor WorkerManager {
         }
     }
 
-    /// Execute a tool directly for the native HTTP host using production metadata and error handling.
-    /// - Returns: The original normalized MCP result, including structured content and rate-limit metadata.
-    /// - Throws: Cancellation errors while acquiring the account operation gate.
     /// Snapshot the selected company for a background operation before its first network write.
     /// - Returns: The account whose credentials must be fixed for that job.
     /// - Throws: Cancellation or company configuration errors.
@@ -553,6 +550,9 @@ public actor WorkerManager {
         }
     }
 
+    /// Execute a tool directly for the native HTTP host using production metadata and error handling.
+    /// - Returns: The original normalized MCP result, including structured content and rate-limit metadata.
+    /// - Throws: Cancellation errors while acquiring the account operation gate.
     func callFromHTTP(_ params: CallTool.Parameters) async throws -> CallTool.Result {
         try await executeTool(params, includeRuntimeMetadata: true, convertErrorsToResults: true)
     }
