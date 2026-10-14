@@ -5,6 +5,7 @@ COPY Package.swift Package.resolved ./
 COPY Sources/CZlib ./Sources/CZlib
 RUN swift package resolve
 COPY Sources ./Sources
+COPY Tests ./Tests
 RUN swift build -c release --disable-automatic-resolution --static-swift-stdlib -j 2
 RUN mkdir /output && cp .build/release/asc-mcp /output/ && cp -R .build/release/asc-mcp_asc-mcp.resources /output/ || \
     (mkdir -p /output && cp .build/release/asc-mcp /output/ && cp -R .build/release/asc-mcp_asc-mcp.bundle /output/)
