@@ -83,9 +83,9 @@ actor CloudOAuth {
     }
 
     /// Prepare a bounded, expiring owner-consent flow after validating all OAuth parameters.
-    /// - Returns: HTML with the registered client identity and requested permissions.
+    /// - Returns: HTML with the registered client identity and permissions, plus its validated callback origin for CSP.
     /// - Throws: CloudFailure for invalid client, redirect, scopes, resource or PKCE challenge.
-    func authorizationPage(_ parameters: [String: String]) throws -> String {
+    func authorizationPage(_ parameters: [String: String]) throws -> (html: String, redirectOrigin: String) {
         cleanup()
         guard approvals.count < 200,
               let id = parameters["client_id"], let client = state.clients[id],
@@ -97,12 +97,13 @@ actor CloudOAuth {
               (parameters["state"] ?? "").utf8.count <= 2048 else { throw CloudFailure(status: 400, message: "Invalid OAuth authorization request") }
         let scopes = Set((parameters["scope"] ?? "asc:read asc:write asc:admin offline_access").split(separator: " ").map(String.init))
         guard !scopes.isEmpty, scopes.isSubset(of: ["asc:read", "asc:write", "asc:admin", "offline_access"]) else { throw CloudFailure(status: 400, message: "Unsupported OAuth scope") }
+        let redirectOrigin = try CloudSecurity.cspOrigin(redirect)
         let flow = CloudSecurity.token()
         var approved = parameters
         approved["scope"] = scopes.sorted().joined(separator: " ")
         approvals[flow] = approved
         approvalExpiry[flow] = Date().addingTimeInterval(600)
-        return """
+        return (html: """
         <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Connect App Store Connect</title>
         <body style="font:17px system-ui;max-width:560px;margin:64px auto;padding:24px"><h1>Connect App Store Connect</h1>
         <p>Client: \(CloudSecurity.html(client.clientName))</p><p>Permissions: \(CloudSecurity.html(approved["scope"] ?? ""))</p>
@@ -110,7 +111,7 @@ actor CloudOAuth {
         <form method="post" action="/oauth/authorize"><input type="hidden" name="flow" value="\(flow)">
         <label>Server owner password <input type="password" name="password" required autocomplete="current-password"></label>
         <p><button type="submit">Authorize connection</button></p></form></body></html>
-        """
+        """, redirectOrigin: redirectOrigin)
     }
 
     /// Authorize a PKCE code after owner login; consume the consent flow exactly once.

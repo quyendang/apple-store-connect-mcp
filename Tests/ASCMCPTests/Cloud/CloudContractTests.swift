@@ -46,6 +46,29 @@ struct CloudContractTests {
         #expect(CloudSecurity.equal("right", "right"))
     }
 
+    @Test("Extra browser origins preserve the server's own login origin")
+    func extraOriginsPreserveOwnerPortal() throws {
+        let config = CompaniesConfig(companies: [TestFactory.makeCompany()])
+        let configuration = try CloudConfiguration(environment: [
+            "MCP_PUBLIC_URL": "https://appstore.example/",
+            "MCP_ADMIN_PASSWORD": "test-owner-password-with-enough-entropy",
+            "MCP_ALLOWED_ORIGINS": " https://client.example , https://second.example ",
+            "ASC_COMPANIES_JSON": String(decoding: JSONEncoder().encode(config), as: UTF8.self)
+        ])
+        #expect(configuration.allowedOrigins == ["https://appstore.example", "https://client.example", "https://second.example"])
+        #expect(!configuration.allowedOrigins.contains("null"))
+        #expect(!configuration.allowedOrigins.contains("https://attacker.example"))
+    }
+
+    @Test("OAuth CSP allows a literal callback origin without directive injection")
+    func callbackCSPOrigin() throws {
+        #expect(try CloudSecurity.cspOrigin("https://client.example:8443/callback?state=one") == "https://client.example:8443")
+        #expect(try CloudSecurity.cspOrigin("http://[::1]:8080/callback") == "http://[::1]:8080")
+        #expect(throws: CloudFailure.self) { try CloudSecurity.cspOrigin("https://*.example/callback") }
+        #expect(throws: CloudFailure.self) { try CloudSecurity.cspOrigin("https://client.example;form-action%20*/callback") }
+        #expect(throws: CloudFailure.self) { try CloudSecurity.cspOrigin("https://owner@client.example/callback") }
+    }
+
     @Test("Owner-scoped sessions cannot be used by another grant")
     func grantIsolation() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

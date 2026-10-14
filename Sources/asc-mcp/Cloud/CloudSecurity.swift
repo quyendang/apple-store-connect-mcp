@@ -52,6 +52,20 @@ enum CloudSecurity {
     static func html(_ value: String) -> String {
         value.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;").replacingOccurrences(of: "'", with: "&#39;")
     }
+
+    /// Serialize a registered OAuth redirect's origin as one safe CSP source.
+    /// - Returns: Scheme, ASCII host and optional port, without path, query or wildcards.
+    /// - Throws: CloudFailure when the URL cannot be represented as a literal HTTP(S) CSP source.
+    static func cspOrigin(_ redirectURI: String) throws -> String {
+        guard let url = URL(string: redirectURI), let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme), url.user == nil, url.password == nil,
+              let host = url.host?.lowercased(), !host.isEmpty,
+              host.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || ".-:[]".contains($0)) }) else {
+            throw CloudFailure(status: 400, message: "Invalid OAuth redirect origin")
+        }
+        let authority = host.contains(":") && !host.hasPrefix("[") ? "[\(host)]" : host
+        return scheme + "://" + authority + (url.port.map { ":\($0)" } ?? "")
+    }
 }
 
 struct CloudFailure: Error, Sendable {

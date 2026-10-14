@@ -36,7 +36,11 @@ Endpoint: `https://domain.com/mcp`. Chọn OAuth. Server hỗ trợ Dynamic Clie
 
 Scopes: `asc:read`, `asc:write`, `asc:admin`, `offline_access`. `auth_*` cần `asc:admin`. Read-only vẫn công bố toàn bộ catalog nhưng chặn thao tác ghi trước khi chạy handler. Có thể thêm `--read-only` vào lệnh chạy server.
 
-Nếu client gửi Origin của trang web, thêm các origin cụ thể vào `MCP_ALLOWED_ORIGINS`, phân cách bằng dấu phẩy; mặc định chỉ chấp nhận `MCP_PUBLIC_URL`. Không dùng wildcard. CORS không thay thế OAuth.
+Nếu client gửi Origin của trang web, thêm các origin cụ thể vào `MCP_ALLOWED_ORIGINS`, phân cách bằng dấu phẩy; server luôn chấp nhận origin của `MCP_PUBLIC_URL` cho trang đăng nhập. Không dùng wildcard. CORS không thay thế OAuth.
+
+Nếu nhập đúng mật khẩu nhưng thấy `Origin not allowed`, kiểm tra `MCP_PUBLIC_URL` trùng domain đang mở (ví dụ `https://appstore.thaybinh.ai`, không thêm `/mcp`). Trang `/oauth/authorize` phải trả header `Referrer-Policy: same-origin`; bản cũ dùng `no-referrer` khiến trình duyệt gửi `Origin: null` khi submit. Deploy commit mới rồi bắt đầu lại kết nối OAuth để tải form mới. Không thêm `null` hoặc `*` vào `MCP_ALLOWED_ORIGINS`.
+
+Trang đăng nhập thêm origin của callback đã đăng ký và được xác thực vào CSP `form-action`, để trình duyệt cho phép redirect sau khi submit. Callback vẫn phải khớp chính xác URI đã đăng ký; không cần thêm domain callback vào `MCP_ALLOWED_ORIGINS` chỉ để hoàn thành OAuth.
 
 Khả năng thêm custom MCP trong ChatGPT/Gemini phụ thuộc tài khoản, workspace và khu vực. Một endpoint chạy đúng không mở khóa tính năng chưa được nhà cung cấp cấp cho tài khoản. Khả năng client nhập đủ 507 công cụ cũng cần kiểm thử trên tài khoản thực; không có công cụ upstream nào bị loại bỏ để giảm catalog.
 

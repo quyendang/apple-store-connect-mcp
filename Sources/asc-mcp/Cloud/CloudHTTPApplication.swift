@@ -16,16 +16,16 @@ struct CloudHTTPApplication: Sendable {
     func handle(_ request: Hummingbird.Request) async -> Response {
         do {
             let response = try await route(request)
-            return secure(response, origin: request.headers[HTTPField.Name("Origin")!])
+            return secure(response, origin: request.headers[HTTPField.Name("Origin")!], path: request.uri.path)
         } catch let error as CloudFailure {
             var response = json(status: error.status, object: ["error": error.message])
             if error.status == 401 { response.headers[HTTPField.Name("WWW-Authenticate")!] = "Bearer resource_metadata=\"\(configuration.publicURL)/.well-known/oauth-protected-resource\"" }
-            return secure(response, origin: request.headers[HTTPField.Name("Origin")!])
+            return secure(response, origin: request.headers[HTTPField.Name("Origin")!], path: request.uri.path)
         } catch let error as HTTPError {
-            return secure(json(status: error.status.code, object: ["error": "Invalid or oversized request"]), origin: nil)
+            return secure(json(status: error.status.code, object: ["error": "Invalid or oversized request"]), origin: nil, path: request.uri.path)
         } catch {
             print("Cloud request failed: \(Redactor.redact(error.localizedDescription))", to: &standardError)
-            return secure(json(status: 500, object: ["error": "Request failed; inspect the operation before retrying a write"]), origin: nil)
+            return secure(json(status: 500, object: ["error": "Request failed; inspect the operation before retrying a write"]), origin: nil, path: request.uri.path)
         }
     }
 
@@ -47,7 +47,13 @@ struct CloudHTTPApplication: Sendable {
         }
         if method == "GET", path == "/.well-known/oauth-authorization-server" { return data(try await oauth.metadata()) }
         if method == "POST", path == "/oauth/register" { return data(try await oauth.register(body(request, limit: 16384)), status: 201) }
-        if method == "GET", path == "/oauth/authorize" { return html(try await oauth.authorizationPage(CloudSecurity.form(request.uri.query ?? ""))) }
+        if method == "GET", path == "/oauth/authorize" {
+            let page = try await oauth.authorizationPage(CloudSecurity.form(request.uri.query ?? ""))
+            var response = html(page.html)
+            // Browsers enforce form-action on redirects too. Only this validated callback origin is added.
+            response.headers[HTTPField.Name("Content-Security-Policy")!] = contentSecurityPolicy(redirectOrigin: page.redirectOrigin)
+            return response
+        }
         if method == "POST", path == "/oauth/authorize" {
             let fields = try CloudSecurity.form(String(decoding: await body(request, limit: 16384), as: UTF8.self))
             let url = try await oauth.authorize(fields, remoteKey: "owner")
@@ -139,12 +145,20 @@ struct CloudHTTPApplication: Sendable {
     private func html(_ text: String) -> Response {
         Response(status: .ok, headers: [.contentType: "text/html; charset=utf-8"], body: .init(byteBuffer: ByteBuffer(string: text)))
     }
-    private func secure(_ response: Response, origin: String?) -> Response {
+    private func contentSecurityPolicy(redirectOrigin: String? = nil) -> String {
+        let formAction = ["'self'", redirectOrigin].compactMap { $0 }.joined(separator: " ")
+        return "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action \(formAction); frame-ancestors 'none'; base-uri 'none'"
+    }
+    private func secure(_ response: Response, origin: String?, path: String) -> Response {
         var response = response
         response.headers[.cacheControl] = "no-store"
         response.headers[HTTPField.Name("X-Content-Type-Options")!] = "nosniff"
-        response.headers[HTTPField.Name("Referrer-Policy")!] = "no-referrer"
-        response.headers[HTTPField.Name("Content-Security-Policy")!] = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+        // HTML form navigation uses the referrer policy when serializing Origin.
+        // no-referrer makes even a same-origin POST send Origin: null, blocking owner login.
+        // same-origin preserves the login POST's origin without leaking the OAuth query to the callback.
+        response.headers[HTTPField.Name("Referrer-Policy")!] = path == "/oauth/authorize" ? "same-origin" : "no-referrer"
+        let policyHeader = HTTPField.Name("Content-Security-Policy")!
+        response.headers[policyHeader] = response.headers[policyHeader] ?? contentSecurityPolicy()
         if let origin, configuration.allowedOrigins.contains(origin) {
             response.headers[HTTPField.Name("Access-Control-Allow-Origin")!] = origin
             response.headers[HTTPField.Name("Access-Control-Expose-Headers")!] = "MCP-Session-Id, WWW-Authenticate"

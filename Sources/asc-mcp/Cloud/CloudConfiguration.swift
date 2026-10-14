@@ -36,7 +36,8 @@ struct CloudConfiguration: Sendable {
         bearerToken = environment["MCP_BEARER_TOKEN"].flatMap { $0.isEmpty ? nil : $0 }
         if let bearerToken, bearerToken.utf8.count < 32 { throw ASCError.configuration("MCP_BEARER_TOKEN must contain at least 32 bytes") }
         dataDirectory = URL(fileURLWithPath: environment["MCP_DATA_DIR"] ?? "./cloud-data", isDirectory: true).standardizedFileURL
-        allowedOrigins = Set((environment["MCP_ALLOWED_ORIGINS"] ?? publicURL).split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+        // Extra browser origins must never exclude the server's own owner-login portal.
+        allowedOrigins = Set((environment["MCP_ALLOWED_ORIGINS"] ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }).union([publicURL])
         maximumUploadBytes = Int(environment["MCP_MAX_UPLOAD_BYTES"] ?? "10737418240") ?? 10_737_418_240
         maximumSessions = Int(environment["MCP_MAX_SESSIONS"] ?? "32") ?? 32
         guard maximumUploadBytes > 0, (1...256).contains(maximumSessions) else { throw ASCError.configuration("Invalid upload/session limits") }

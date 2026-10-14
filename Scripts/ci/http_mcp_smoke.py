@@ -33,7 +33,7 @@ def run(binary):
         origin = f"http://127.0.0.1:{port}"
         password, automation = secrets.token_hex(32), secrets.token_hex(32)
         config = {"companies": [{"id": name, "name": name, "key_id": "TEST", "issuer_id": "TEST", "key_content": key.read_text()} for name in ["alpha", "beta"]]}
-        env = dict(os.environ, MCP_PUBLIC_URL=origin, MCP_ADMIN_PASSWORD=password, MCP_BEARER_TOKEN=automation, PORT=str(port), MCP_DATA_DIR=str(tmp / "data"), ASC_COMPANIES_JSON=json.dumps(config), ASC_TRANSPORT="http")
+        env = dict(os.environ, MCP_PUBLIC_URL=origin, MCP_ALLOWED_ORIGINS="https://client.example", MCP_ADMIN_PASSWORD=password, MCP_BEARER_TOKEN=automation, PORT=str(port), MCP_DATA_DIR=str(tmp / "data"), ASC_COMPANIES_JSON=json.dumps(config), ASC_TRANSPORT="http")
         log = open(tmp / "server.log", "wb")
         process = subprocess.Popen([str(Path(binary).resolve()), "--http"], env=env, stdout=log, stderr=log)
 
@@ -185,11 +185,18 @@ def run(binary):
             verifier = secrets.token_urlsafe(48)
             challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
             fields = {"client_id": client, "redirect_uri": redirect, "response_type": "code", "code_challenge_method": "S256", "code_challenge": challenge, "resource": origin + "/mcp", "state": "test-state", "scope": "asc:read offline_access"}
-            status, _, page = request("GET", "/oauth/authorize?" + urllib.parse.urlencode(fields))
+            status, page_headers, page = request("GET", "/oauth/authorize?" + urllib.parse.urlencode(fields))
             check(status == 200, "Owner authorization page failed")
+            check(page_headers.get("referrer-policy") == "same-origin", "Browser form would lose its Origin before owner login")
+            check("form-action 'self' https://client.example;" in page_headers.get("content-security-policy", ""), "Browser would block the registered OAuth callback")
+            check("attacker.example" not in page_headers.get("content-security-policy", ""), "OAuth CSP allowed an unrelated callback")
             flow = re.search(r'name="flow" value="([^"]+)"', page.decode()).group(1)
-            check(request("POST", "/oauth/authorize", {"flow": flow, "password": "wrong"}, form=True)[0] == 403, "Wrong owner password accepted")
-            status, headers, _ = request("POST", "/oauth/authorize", {"flow": flow, "password": password}, form=True)
+            consent = {"flow": flow, "password": password}
+            for rejected_origin in ["null", "https://attacker.example"]:
+                status, _, denied = request("POST", "/oauth/authorize", consent, form=True, extra={"Origin": rejected_origin})
+                check(status == 403 and json.loads(denied)["error"] == "Origin not allowed", "Untrusted login origin allowed")
+            check(request("POST", "/oauth/authorize", {"flow": flow, "password": "wrong"}, form=True, extra={"Origin": origin})[0] == 403, "Wrong owner password accepted")
+            status, headers, _ = request("POST", "/oauth/authorize", consent, form=True, extra={"Origin": origin})
             check(status == 303, "Owner consent failed")
             query = urllib.parse.parse_qs(urllib.parse.urlparse(headers["location"]).query)
             check(query["state"] == ["test-state"] and query["iss"] == [origin], "OAuth state/issuer not preserved")
