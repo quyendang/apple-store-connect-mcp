@@ -66,7 +66,8 @@ struct HTTPTransportRedirectSafetyTests {
         let (data, response) = try await transport.data(for: request)
         #expect(response.statusCode == 307)
         #expect(response.url == fixture.sourceURL)
-        #expect(data == LinuxRedirectFixture.body)
+        // FoundationNetworking may discard a refused redirect body; any retained bytes must be unchanged.
+        #expect(data.isEmpty || data == LinuxRedirectFixture.body)
         #expect(fixture.sourceCount == 1)
         #expect(fixture.targetCount == 0)
         #else
