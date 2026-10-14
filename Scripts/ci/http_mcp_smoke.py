@@ -9,6 +9,7 @@ import os
 import re
 import secrets
 import socket
+import sys
 import subprocess
 import tempfile
 import time
@@ -213,6 +214,11 @@ def run(binary):
             check(request("DELETE", "/mcp", token=automation, session=session_b)[0] == 200, "Session deletion failed")
             check(rpc("tools/list", session=session_b)[0] == 404, "Deleted session still usable")
             print("PASS: 502 upstream + 5 cloud tools; legacy/modern native MCP, isolated companies, inputs, files, jobs, OAuth PKCE/refresh/revocation")
+        except Exception:
+            log.flush()
+            print("Native server diagnostics (synthetic test configuration):", file=sys.stderr)
+            print((tmp / "server.log").read_text(errors="replace")[-24000:], file=sys.stderr)
+            raise
         finally:
             process.terminate()
             try:

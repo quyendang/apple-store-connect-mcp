@@ -65,9 +65,23 @@ enum CloudModernRPC {
     }
     private static var supported: [Value] { ([version] + Array(Version.supported.sorted().reversed())).map(Value.string) }
     private static func complete(id: Value, result: CallTool.Result) -> Response {
-        guard let data = try? JSONEncoder().encode(result), let value = try? JSONDecoder().decode(Value.self, from: data), var object = value.objectValue else { return rpcError(id: id, code: -32603, message: "Unable to encode result", status: 500) }
-        object["resultType"] = .string("complete")
-        return raw(.object(["jsonrpc": .string("2.0"), "id": id, "result": .object(object)]))
+        // Encode the SDK result directly: preserve every field and avoid a lossy JSON round-trip.
+        struct ModernResult: Encodable {
+            let original: CallTool.Result
+            enum CodingKeys: String, CodingKey { case resultType }
+            func encode(to encoder: any Encoder) throws {
+                try original.encode(to: encoder)
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode("complete", forKey: .resultType)
+            }
+        }
+        struct Envelope: Encodable {
+            let jsonrpc = "2.0"
+            let id: Value
+            let result: ModernResult
+        }
+        guard let bytes = try? JSONEncoder().encode(Envelope(id: id, result: ModernResult(original: result))) else { return rpcError(id: id, code: -32603, message: "Unable to encode result", status: 500) }
+        return Response(status: .ok, headers: [.contentType: "application/json"], body: .init(byteBuffer: ByteBuffer(bytes: bytes)))
     }
     private static func rpcError(id: Value, code: Int, message: String, status: Int) -> Response {
         raw(.object(["jsonrpc": .string("2.0"), "id": id, "error": .object(["code": .int(code), "message": .string(message)])]), status: status)

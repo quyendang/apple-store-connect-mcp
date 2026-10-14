@@ -19,10 +19,8 @@ jobs:
         run: apt-get update && apt-get install -y libssl-dev zlib1g-dev python3 openssl
       - name: Unit and contract tests
         run: swift test --disable-automatic-resolution -j 2
-      - name: Release build
-        run: swift build -c release --disable-automatic-resolution -j 2
       - name: Real HTTP MCP and OAuth smoke
-        run: python3 Scripts/ci/http_mcp_smoke.py --binary .build/release/asc-mcp
+        run: python3 Scripts/ci/http_mcp_smoke.py --binary .build/debug/asc-mcp
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 45
