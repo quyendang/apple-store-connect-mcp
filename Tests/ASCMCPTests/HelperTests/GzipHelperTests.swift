@@ -1,4 +1,4 @@
-import Compression
+import CZlib
 import Foundation
 import Testing
 @testable import asc_mcp
@@ -218,17 +218,20 @@ struct GzipHelperTests {
         let destinationBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: destinationSize)
         defer { destinationBuffer.deallocate() }
 
-        let compressedSize = data.withUnsafeBytes { source -> Int in
-            guard let sourceBaseAddress = source.baseAddress else { return 0 }
-            return compression_encode_buffer(
-                destinationBuffer,
-                destinationSize,
-                sourceBaseAddress.assumingMemoryBound(to: UInt8.self),
-                source.count,
-                nil,
-                COMPRESSION_ZLIB
-            )
+        var stream = z_stream()
+        guard deflateInit2_(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY, zlibVersion(), Int32(MemoryLayout<z_stream>.size)) == Z_OK else {
+            throw GzipTestError.compressionFailed
         }
+        defer { deflateEnd(&stream) }
+        let status = data.withUnsafeBytes { source -> Int32 in
+            stream.next_in = UnsafeMutablePointer<Bytef>(mutating: source.bindMemory(to: Bytef.self).baseAddress)
+            stream.avail_in = uInt(source.count)
+            stream.next_out = destinationBuffer
+            stream.avail_out = uInt(destinationSize)
+            return deflate(&stream, Z_FINISH)
+        }
+        guard status == Z_STREAM_END else { throw GzipTestError.compressionFailed }
+        let compressedSize = destinationSize - Int(stream.avail_out)
         guard compressedSize > 0 else {
             throw GzipTestError.compressionFailed
         }

@@ -41,6 +41,7 @@ let package = Package(
             name: "ASCMCPTests",
             dependencies: [
                 "asc-mcp",
+                "CZlib",
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "MCP", package: "swift-sdk")
             ],

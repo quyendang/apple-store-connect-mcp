@@ -54,6 +54,22 @@ struct HTTPTransportRedirectSafetyTests {
 
     @Test("production URLSession transport returns the original redirect without replay")
     func productionTransportWiresRedirectDelegate() async throws {
+        #if os(Linux)
+        // swift-corelibs URLProtocol cannot simulate redirects; exercise the real socket transport.
+        let fixture = try LinuxRedirectFixture()
+        defer { fixture.stop() }
+        let transport = URLSessionTransport(configuration: .ephemeral)
+        var request = URLRequest(url: fixture.sourceURL)
+        request.httpMethod = "POST"
+        request.httpBody = Data(#"{"value":"original"}"#.utf8)
+        request.setValue("Bearer asc-jwt", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await transport.data(for: request)
+        #expect(response.statusCode == 307)
+        #expect(response.url == fixture.sourceURL)
+        #expect(data == LinuxRedirectFixture.body)
+        #expect(fixture.sourceCount == 1)
+        #expect(fixture.targetCount == 0)
+        #else
         ProductionRedirectURLProtocol.recorder.reset()
         defer { ProductionRedirectURLProtocol.recorder.reset() }
 
@@ -81,6 +97,7 @@ struct HTTPTransportRedirectSafetyTests {
         #expect(
             ProductionRedirectURLProtocol.recorder.count(for: ProductionRedirectURLProtocol.targetURL) == 0
         )
+        #endif
     }
 
     @Test(
