@@ -70,3 +70,21 @@ struct CloudContractTests {
         await #expect(throws: CloudFailure.self) { try await files.arguments(["file_id": .string("unknown")], owner: "owner") }
     }
 }
+
+@Suite("Cloud Job Recovery Contract")
+struct CloudJobRecoveryContractTests {
+    @Test("A failed Apple write with unknown outcome preserves the inspection requirement")
+    func unknownWriteRequiresInspection() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let result = MCPResult.error(ASCError.mutationOutcomeUnknown(method: "POST", cause: .network("connection interrupted")))
+        let job = CloudJobs.Job(id: "job", owner: "owner", operationID: "operation", requestHash: "hash", toolName: "iap_create", contextID: "context", createdAt: Date(), status: "failed", result: result)
+        try JSONEncoder().encode(["job": job]).write(to: directory.appendingPathComponent("jobs.json"))
+        let service = try CloudJobs(directory: directory)
+        let receipt = try await service.get(id: "job", owner: "owner")
+        #expect(receipt.structuredContent?.objectValue?["inspection_required"] == .bool(true))
+        #expect(receipt.structuredContent?.objectValue?["retry_safe"] == .bool(false))
+        #expect(receipt.structuredContent?.objectValue?["original_result"]?.objectValue?["structuredContent"]?.objectValue?["operationCommitState"] == .string("unknown"))
+    }
+}

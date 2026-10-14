@@ -36,6 +36,7 @@ enum Redactor {
             "committed_unverified",
             "absolute-path-to-the-exact-reserved-bytes"
         ]
+        identifiers.formUnion(CloudTools.names)
         if let manifest = try? ASCOperationManifestBundle.loadBundled() {
             identifiers.formUnion(manifest.tools.map(\.tool))
         }

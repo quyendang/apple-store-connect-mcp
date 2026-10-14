@@ -596,12 +596,19 @@ struct ASCOperationManifestBundle: Sendable, Equatable {
 
     private static func bundledManifestDirectory() -> URL? {
         let fileManager = FileManager.default
+        #if os(Linux)
+        // swift-corelibs Foundation can crash while enumerating all loaded bundles.
+        // Resolve sidecar resources from the executable instead of querying that global registry.
+        let entry = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.resolvingSymlinksInPath()
+        var roots = [entry.deletingLastPathComponent()]
+        var executableURLs = [entry]
+        #else
         let loadedBundles = Bundle.allBundles + [Bundle.main]
         var roots = loadedBundles.flatMap { bundle in
             [bundle.bundleURL, bundle.resourceURL].compactMap { $0 }
         }
-
         var executableURLs = loadedBundles.compactMap(\.executableURL)
+        #endif
         for argument in CommandLine.arguments
         where argument.hasPrefix("/") && fileManager.isExecutableFile(atPath: argument) {
             executableURLs.append(URL(fileURLWithPath: argument))
@@ -624,15 +631,13 @@ struct ASCOperationManifestBundle: Sendable, Equatable {
 
         var seen: Set<String> = []
         for root in roots {
-            let resourceBundle = root.appendingPathComponent(
-                "asc-mcp_asc-mcp.bundle",
-                isDirectory: true
-            )
-            let candidates = [
-                root.appendingPathComponent("OperationManifest", isDirectory: true),
-                resourceBundle.appendingPathComponent("OperationManifest", isDirectory: true),
-                resourceBundle.appendingPathComponent("Contents/Resources/OperationManifest", isDirectory: true)
-            ]
+            let resourceBundles = ["asc-mcp_asc-mcp.bundle", "asc-mcp_asc-mcp.resources"].map {
+                root.appendingPathComponent($0, isDirectory: true)
+            }
+            let candidates = [root.appendingPathComponent("OperationManifest", isDirectory: true)] + resourceBundles.flatMap { resourceBundle in
+                [resourceBundle.appendingPathComponent("OperationManifest", isDirectory: true),
+                 resourceBundle.appendingPathComponent("Contents/Resources/OperationManifest", isDirectory: true)]
+            }
             for candidate in candidates {
                 let path = candidate.standardizedFileURL.path
                 guard seen.insert(path).inserted else {

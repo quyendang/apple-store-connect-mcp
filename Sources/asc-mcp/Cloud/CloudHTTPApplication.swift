@@ -159,6 +159,8 @@ struct CloudHTTPApplication: Sendable {
 /// - Throws: Configuration, storage, bind or server-lifecycle errors.
 func runCloudApplication(options: AppRuntimeOptions) async throws {
     let configuration = try CloudConfiguration()
+    // Validate the deployed resource bundle before reporting readiness or serving credentials.
+    _ = try ASCOperationManifestBundle.loadBundled()
     let oauth = try CloudOAuth(configuration: configuration)
     let runtime = try CloudRuntime(configuration: configuration, options: options)
     let host = CloudHTTPApplication(configuration: configuration, oauth: oauth, runtime: runtime)

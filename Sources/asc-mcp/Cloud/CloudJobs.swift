@@ -74,7 +74,11 @@ actor CloudJobs {
         catch { print("Cloud job receipt could not be persisted; inspect Apple before retrying after a restart", to: &standardError) }
     }
     private func receipt(_ job: Job) -> CallTool.Result {
-        var object: [String: Any] = ["job_id": job.id, "operation_id": job.operationID, "tool_name": job.toolName, "context_id": job.contextID, "status": job.status, "created_at": ISO8601DateFormatter().string(from: job.createdAt), "inspection_required": job.status == "unknown", "retry_safe": false]
+        let originalFields = job.result?.structuredContent?.objectValue ?? [:]
+        let commitState = originalFields["operationCommitState"]?.stringValue
+        let inspectionRequired = job.status == "unknown" || originalFields["inspectionRequired"]?.boolValue == true
+            || commitState == "unknown" || commitState == "committed_unverified"
+        var object: [String: Any] = ["job_id": job.id, "operation_id": job.operationID, "tool_name": job.toolName, "context_id": job.contextID, "status": job.status, "created_at": ISO8601DateFormatter().string(from: job.createdAt), "inspection_required": inspectionRequired, "retry_safe": false]
         if let result = job.result, let encoded = try? JSONEncoder().encode(result), let value = try? JSONSerialization.jsonObject(with: encoded) { object["original_result"] = value }
         if job.status == "unknown" { object["recovery"] = "The server restarted during this operation. Inspect the original resource using the matching read tool before submitting a new operation. Do not blindly replay this write." }
         return MCPResult.jsonObject(object)
